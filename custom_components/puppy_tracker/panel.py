@@ -43,6 +43,13 @@ async def async_register_panel_frontend(hass: HomeAssistant) -> None:
     except RuntimeError:
         _LOGGER.debug("Static path already registered, skipping")
 
+    # Cache-bust on the bundle's mtime so a browser reload always fetches the
+    # latest build after a restart/redeploy (the ?v param changes with the file).
+    try:
+        mtime = int(PANEL_PATH.stat().st_mtime)
+    except OSError:
+        mtime = 0
+
     try:
         await async_register_panel(
             hass,
@@ -50,7 +57,7 @@ async def async_register_panel_frontend(hass: HomeAssistant) -> None:
             webcomponent_name="puppy-tracker-panel",
             sidebar_title="Puppy Tracker",
             sidebar_icon="mdi:dog",
-            module_url=PANEL_STATIC_URL + f"/entrypoint.js?v={VERSION}",
+            module_url=PANEL_STATIC_URL + f"/entrypoint.js?v={VERSION}-{mtime}",
             require_admin=False,
             config_panel_domain=DOMAIN,
         )

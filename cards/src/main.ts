@@ -96,6 +96,21 @@ const TABS: { id: Tab; label: string }[] = [
 const NL_DATE = new Intl.DateTimeFormat("nl-NL", { weekday: "short", day: "numeric", month: "short" });
 const NL_WEEKDAY = new Intl.DateTimeFormat("nl-NL", { weekday: "long", day: "numeric", month: "short" });
 
+// Day-view timeline geometry. The day runs from DAY_START_HOUR for 24h.
+const DAY_START_HOUR = 7;
+const HOUR_H = 60; // px per hour (keep in sync with CSS night-band height)
+
+function minsFromStart(h: number, m: number): number {
+  let mins = h * 60 + m - DAY_START_HOUR * 60;
+  if (mins < 0) mins += 24 * 60;
+  return mins;
+}
+
+function timeToMins(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return minsFromStart(h, m);
+}
+
 @customElement("puppy-tracker-panel")
 export class PuppyTrackerPanel extends LitElement {
   @property({ attribute: false }) hass?: Hass;
@@ -108,14 +123,29 @@ export class PuppyTrackerPanel extends LitElement {
   @state() private _taskForm = false;
   @state() private _protoForm = false;
   @state() private _stepForm?: number;
-  @state() private _confirm?: { kind: "task" | "protocol"; id: number };
+  @state() private _editStep?: number;
+  @state() private _editProto?: number;
+  @state() private _confirm?: { kind: "task" | "protocol" | "step"; id: number };
 
   private _timer?: number;
   private _loaded = false;
+  private _didScroll = false;
 
   connectedCallback(): void {
     super.connectedCallback();
     this._timer = window.setInterval(() => this.requestUpdate(), 1000);
+    const saved = localStorage.getItem("pt-tab") as Tab | null;
+    if (saved && TABS.some((t) => t.id === saved)) this._tab = saved;
+  }
+
+  private _selectTab(id: Tab): void {
+    this._tab = id;
+    if (id === "vandaag") this._didScroll = false;
+    try {
+      localStorage.setItem("pt-tab", id);
+    } catch {
+      /* ignore storage errors */
+    }
   }
 
   disconnectedCallback(): void {
@@ -127,6 +157,15 @@ export class PuppyTrackerPanel extends LitElement {
     if (changed.has("hass") && this.hass && !this._loaded) {
       this._loaded = true;
       void this._load();
+    }
+    if (this._tab === "vandaag" && this._state && !this._didScroll) {
+      const el = this.renderRoot.querySelector(".timeline-scroll") as HTMLElement | null;
+      if (el && el.clientHeight > 0) {
+        const now = new Date();
+        const top = (minsFromStart(now.getHours(), now.getMinutes()) / 60) * HOUR_H;
+        el.scrollTop = Math.max(0, top - el.clientHeight / 2);
+        this._didScroll = true;
+      }
     }
   }
 
@@ -213,20 +252,44 @@ export class PuppyTrackerPanel extends LitElement {
   }
 
   private async _submitProtocol(): Promise<void> {
-    const name = (this.renderRoot.querySelector("#np-name") as HTMLInputElement)?.value.trim();
-    const start = (this.renderRoot.querySelector("#np-start") as HTMLInputElement)?.value;
+    const q = (id: string) => (this.renderRoot.querySelector(id) as HTMLInputElement)?.value ?? "";
+    const name = q("#np-name").trim();
     if (!name) return;
     this._protoForm = false;
-    const r = await this._ws<{ protocols: Protocol[] }>("add_protocol", { name, anchor: "fixed", start_date: start || null });
+    const r = await this._ws<{ protocols: Protocol[] }>("add_protocol", {
+      name,
+      anchor: "fixed",
+      start_date: q("#np-start") || null,
+      notes: q("#np-notes"),
+    });
     if (r) this._merge({ protocols: r.protocols });
   }
 
-  private async _submitStep(pid: number): Promise<void> {
+  private async _submitProtoEdit(p: Protocol): Promise<void> {
+    const q = (id: string) => (this.renderRoot.querySelector(id) as HTMLInputElement)?.value ?? "";
+    const name = q("#ep-name").trim();
+    if (!name) return;
+    this._editProto = undefined;
+    const r = await this._ws<{ protocols: Protocol[] }>("update_protocol", {
+      protocol_id: p.id,
+      name,
+      start_date: q("#ep-start") || null,
+      notes: q("#ep-notes"),
+    });
+    if (r) this._merge({ protocols: r.protocols });
+  }
+
+  private async _submitStep(p: Protocol): Promise<void> {
     const title = (this.renderRoot.querySelector("#ns-title") as HTMLInputElement)?.value.trim();
-    const off = (this.renderRoot.querySelector("#ns-off") as HTMLInputElement)?.value;
+    const dateStr = (this.renderRoot.querySelector("#ns-date") as HTMLInputElement)?.value;
     if (!title) return;
     this._stepForm = undefined;
-    const r = await this._ws<{ protocols: Protocol[] }>("add_step", { protocol_id: pid, title, day_offset: parseInt(off || "0", 10) || 0 });
+    const off = this._dateToOffset(p.start_date, dateStr);
+    const r = await this._ws<{ protocols: Protocol[] }>("add_step", {
+      protocol_id: p.id,
+      title,
+      day_offset: off ?? 0,
+    });
     if (r) this._merge({ protocols: r.protocols });
   }
 
@@ -236,15 +299,84 @@ export class PuppyTrackerPanel extends LitElement {
     if (r) this._merge({ protocols: r.protocols });
   }
 
+  private _isoLocal(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  private _nextStepDate(p: Protocol, today: string): string {
+    const last = p.steps.length ? p.steps[p.steps.length - 1].effective_date : null;
+    if (last) {
+      const d = new Date(last + "T00:00:00");
+      d.setDate(d.getDate() + 1);
+      return this._isoLocal(d);
+    }
+    return p.start_date ?? today;
+  }
+
+  private _dateToOffset(startDate: string | null, dateStr: string): number | null {
+    if (!startDate || !dateStr) return null;
+    const s = new Date(startDate + "T00:00:00").getTime();
+    const d = new Date(dateStr + "T00:00:00").getTime();
+    return Math.round((d - s) / 86400000);
+  }
+
+  private async _submitStepEdit(step: Step, protocol: Protocol): Promise<void> {
+    const title = (this.renderRoot.querySelector("#es-title") as HTMLInputElement)?.value.trim();
+    const dateStr = (this.renderRoot.querySelector("#es-date") as HTMLInputElement)?.value;
+    const notes = (this.renderRoot.querySelector("#es-notes") as HTMLInputElement)?.value ?? "";
+    if (!title) return;
+    const off = this._dateToOffset(protocol.start_date, dateStr);
+    this._editStep = undefined;
+    const payload: Record<string, unknown> = { step_id: step.id, title, notes };
+    if (off !== null) payload.day_offset = off;
+    const r = await this._ws<{ protocols: Protocol[] }>("update_step", payload);
+    if (r) this._merge({ protocols: r.protocols });
+  }
+
   private async _saveConfig(): Promise<void> {
     const q = (id: string) => (this.renderRoot.querySelector(id) as HTMLInputElement)?.value ?? "";
+    // photo_url is omitted so the backend keeps the existing photo.
     const s = await this._ws<State>("update_puppy", {
       name: q("#name"),
       birth_date: q("#birth") || null,
       homecoming_date: q("#home") || null,
-      photo_url: q("#photo"),
     });
     if (s && s.puppy !== undefined) this._state = s;
+  }
+
+  private async _savePhoto(dataUrl: string): Promise<void> {
+    const s = await this._ws<State>("update_puppy", { photo_url: dataUrl });
+    if (s && s.puppy !== undefined) this._state = s;
+  }
+
+  private _onPhotoFile(e: Event): void {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 400;
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+        void this._savePhoto(dataUrl);
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+    input.value = "";
   }
 
   // ---- Derived helpers ---------------------------------------------------
@@ -256,15 +388,6 @@ export class PuppyTrackerPanel extends LitElement {
 
   private _isToday(d: string | null): boolean {
     return !!d && d === this._state?.today;
-  }
-
-  private _isPast(d: string | null): boolean {
-    return !!d && !!this._state && d < this._state.today;
-  }
-
-  private _isNight(time: string): boolean {
-    const s = this._state!;
-    return time >= s.night.start || time < s.night.end;
   }
 
   private _ageText(): string {
@@ -369,7 +492,7 @@ export class PuppyTrackerPanel extends LitElement {
       </div>
       <div class="tabs">
         ${TABS.map(
-          (t) => html`<button class="tab ${this._tab === t.id ? "active" : ""}" @click=${() => (this._tab = t.id)}>${t.label}</button>`,
+          (t) => html`<button class="tab ${this._tab === t.id ? "active" : ""}" @click=${() => this._selectTab(t.id)}>${t.label}</button>`,
         )}
       </div>
     `;
@@ -448,6 +571,27 @@ export class PuppyTrackerPanel extends LitElement {
     const rest = this._restToday();
     const steps = this._todaySteps();
     const tasks = this._todayTasks();
+
+    const totalH = 24 * HOUR_H;
+    const now = new Date();
+    const nowTop = (minsFromStart(now.getHours(), now.getMinutes()) / 60) * HOUR_H;
+
+    // Place items by exact time, pushing down to avoid overlap when clustered.
+    const ITEM_H = 26;
+    const sorted = [...s.daily_schedule].sort((a, b) => timeToMins(a.time) - timeToMins(b.time));
+    let lastBottom = -100;
+    const placed = sorted.map((it) => {
+      let top = (timeToMins(it.time) / 60) * HOUR_H;
+      if (top < lastBottom + 2) top = lastBottom + 2;
+      lastBottom = top + ITEM_H;
+      return { it, top };
+    });
+
+    const hours = Array.from({ length: 24 }, (_, i) => {
+      const hour = (DAY_START_HOUR + i) % 24;
+      return { hour, night: hour >= 22 || hour < 6, top: i * HOUR_H };
+    });
+
     return html`
       <section>
         <div class="sec-head">
@@ -455,24 +599,32 @@ export class PuppyTrackerPanel extends LitElement {
           <button class="ghost" @click=${this._clearToday}>Wis vandaag</button>
         </div>
         ${rest ? html`<div class="rest-banner">💥 Rustdag — ${rest.title}</div>` : nothing}
-        <div class="schedule">
-          ${s.daily_schedule.map((it) => {
-            const t = s.schedule_types[it.type];
-            const night = this._isNight(it.time);
-            const checked = done.has(it.key);
-            return html`
-              <label class="row ${night ? "night" : ""} ${checked ? "checked" : ""}" style="--rc:${t?.color ?? "#888"}">
-                <span class="time">${it.time}</span>
-                <span class="bar"></span>
-                <span class="row-main">
-                  <span class="row-title">${it.label}</span>
-                  ${it.note ? html`<span class="row-note">${it.note}</span>` : nothing}
-                </span>
-                <input type="checkbox" .checked=${checked}
-                  @change=${(e: Event) => this._toggleDaily(it.key, (e.target as HTMLInputElement).checked)} />
-              </label>
-            `;
-          })}
+        <div class="timeline-scroll">
+          <div class="timeline" style="height:${totalH}px">
+            ${hours.map(
+              (h) => html`
+                <div class="hour-line ${h.night ? "night" : ""}" style="top:${h.top}px">
+                  <span class="hour-label">${String(h.hour).padStart(2, "0")}:00</span>
+                </div>
+              `,
+            )}
+            ${placed.map(({ it, top }) => {
+              const t = s.schedule_types[it.type];
+              const checked = done.has(it.key);
+              return html`
+                <div class="tl-item ${checked ? "checked" : ""}" style="top:${top}px;--rc:${t?.color ?? "#888"}" title=${it.note || it.label}>
+                  <span class="tl-time">${it.time}</span>
+                  <span class="tl-label">${it.label}</span>
+                  <input type="checkbox" .checked=${checked}
+                    @change=${(e: Event) => this._toggleDaily(it.key, (e.target as HTMLInputElement).checked)} />
+                </div>
+              `;
+            })}
+            <div class="now-line" style="top:${nowTop}px">
+              <span class="now-dot"></span>
+              <span class="now-time">${now.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })}</span>
+            </div>
+          </div>
         </div>
 
         ${steps.length || tasks.length
@@ -569,36 +721,115 @@ export class PuppyTrackerPanel extends LitElement {
 
   // ---- Tab: Socialisatie -------------------------------------------------
 
+  private async _removeStep(id: number): Promise<void> {
+    this._confirm = undefined;
+    const r = await this._ws<{ protocols: Protocol[] }>("remove_step", { step_id: id });
+    if (r) this._merge({ protocols: r.protocols });
+  }
+
+  private _stepDelete(st: Step) {
+    return this._confirm?.kind === "step" && this._confirm.id === st.id
+      ? html`<span class="confirm">Verwijderen?
+          <button class="link danger" @click=${() => this._removeStep(st.id)}>Ja</button>
+          <button class="link" @click=${() => (this._confirm = undefined)}>Nee</button></span>`
+      : html`<button class="link danger" title="Verwijderen" @click=${() => (this._confirm = { kind: "step", id: st.id })}>×</button>`;
+  }
+
+  private async _moveStepWeek(step: Step, deltaWeeks: number): Promise<void> {
+    const r = await this._ws<{ protocols: Protocol[] }>("update_step", {
+      step_id: step.id,
+      day_offset: step.day_offset + deltaWeeks * 7,
+    });
+    if (r) this._merge({ protocols: r.protocols });
+  }
+
+  private _currentSocWeek(proto: Protocol): number | null {
+    if (!proto.start_date || !this._state) return null;
+    const start = new Date(proto.start_date + "T00:00:00").getTime();
+    const today = new Date(this._state.today + "T00:00:00").getTime();
+    if (today < start) return -1; // programma nog niet begonnen
+    return Math.floor((today - start) / (7 * 86400000));
+  }
+
   private _renderSocialization(s: State) {
     const proto = s.protocols.find((p) => p.seed_key === "socialization");
     if (!proto) return html`<section><p class="muted">Geen socialisatieprogramma. Stel een thuiskomstdatum in.</p></section>`;
+
+    const WEEKS = 5; // 7-12 weken = 5 weken vanaf thuiskomst
+    const currentWeek = this._currentSocWeek(proto);
+    const byWeek: Step[][] = Array.from({ length: WEEKS }, () => []);
+    for (const st of proto.steps) {
+      const w = Math.min(WEEKS - 1, Math.max(0, Math.floor(st.day_offset / 7)));
+      byWeek[w].push(st);
+    }
+
     return html`
       <section>
-        <h2>Socialisatie <small class="muted">(7-12 weken · vanaf thuiskomst)</small></h2>
+        <div class="sec-head">
+          <h2>Socialisatie <small class="muted">(7-12 weken · weekchecklist)</small></h2>
+        </div>
         <div class="legend">
           ${Object.entries(s.socialization_categories).map(
             ([, c]) => html`<span class="tag"><span class="dot" style="background:${c.color}"></span>${c.label}</span>`,
           )}
         </div>
-        <div class="socia">${proto.steps.map((st) => this._renderSocDay(s, st))}</div>
+        <div class="weeks">
+          ${byWeek.map((items, i) => this._renderSocWeek(s, proto, items, i, currentWeek, WEEKS))}
+        </div>
       </section>
     `;
   }
 
-  private _renderSocDay(s: State, st: Step) {
-    const cat = s.socialization_categories[st.category];
-    const today = this._isToday(st.effective_date);
-    const past = this._isPast(st.effective_date);
+  private _renderSocWeek(s: State, proto: Protocol, items: Step[], i: number, currentWeek: number | null, weeks: number) {
+    const done = items.filter((st) => st.done_at).length;
+    const isCurrent = currentWeek === i;
     return html`
-      <div class="soc-day ${today ? "today" : ""} ${past ? "past" : ""} ${st.done_at ? "done" : ""}"
-        style="border-left-color:${cat?.color ?? "#888"}">
-        <div class="soc-top">
-          <span class="soc-date">${this._fmt(st.effective_date)}</span>
-          <input type="checkbox" .checked=${!!st.done_at} @change=${() => this._toggleStep(st)} />
+      <div class="week-card ${isCurrent ? "current" : ""}">
+        <div class="week-head">
+          <div>
+            <strong>Week ${i + 1}</strong>
+            <small class="muted">${7 + i}-${8 + i} wk</small>
+            ${isCurrent ? html`<span class="badge">Nu</span>` : nothing}
+          </div>
+          <span class="week-progress">${done}/${items.length}</span>
         </div>
-        <div class="soc-act">${st.title}</div>
-        ${st.notes ? html`<div class="soc-note">${st.notes}</div>` : nothing}
-        ${this._deferControls(st)}
+        <div class="week-items">
+          ${items.length === 0 ? html`<div class="muted small">Geen activiteiten deze week.</div>` : nothing}
+          ${items.map((st) => this._renderSocItem(s, proto, st, i, weeks))}
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderSocItem(s: State, proto: Protocol, st: Step, weekIndex: number, weeks: number) {
+    const cat = s.socialization_categories[st.category];
+    if (this._editStep === st.id) {
+      return html`
+        <div class="soc-item editing">
+          <input id="es-title" type="text" .value=${st.title} placeholder="activiteit" />
+          <input id="es-notes" type="text" .value=${st.notes} placeholder="notitie (optioneel)" />
+          <input id="es-date" type="hidden" .value=${st.effective_date ?? ""} />
+          <div class="soc-item-actions">
+            <button class="primary" @click=${() => this._submitStepEdit(st, proto)}>Opslaan</button>
+            <button class="link" @click=${() => (this._editStep = undefined)}>Annuleer</button>
+          </div>
+        </div>
+      `;
+    }
+    return html`
+      <div class="soc-item ${st.done_at ? "done" : ""}" style="--rc:${cat?.color ?? "#888"}">
+        <input type="checkbox" .checked=${!!st.done_at} @change=${() => this._toggleStep(st)} />
+        <span class="cat-dot" style="background:${cat?.color ?? "#888"}" title=${cat?.label ?? ""}></span>
+        <span class="soc-item-main">
+          <span class="soc-item-title">${st.title}</span>
+          ${st.notes ? html`<span class="soc-item-note">${st.notes}</span>` : nothing}
+        </span>
+        <span class="soc-item-actions">
+          <button class="iconbtn" title="Vorige week" ?disabled=${weekIndex === 0} @click=${() => this._moveStepWeek(st, -1)}>←</button>
+          <button class="iconbtn" title="Volgende week" ?disabled=${weekIndex === weeks - 1} @click=${() => this._moveStepWeek(st, 1)}>→</button>
+          <button class="link" @click=${() => (this._editStep = st.id)}>Bewerken</button>
+          ${this._stepDelete(st)}
+        </span>
       </div>
     `;
   }
@@ -627,8 +858,9 @@ export class PuppyTrackerPanel extends LitElement {
           : nothing}
         ${this._protoForm
           ? html`<div class="inline-form">
-              <input id="np-name" type="text" placeholder="Naam schema" />
-              <input id="np-start" type="date" .value=${s.today} />
+              <label class="fld grow">Naam<input id="np-name" type="text" placeholder="bv. Bench verplaatsen" /></label>
+              <label class="fld">Startdatum<input id="np-start" type="date" .value=${s.today} /></label>
+              <label class="fld grow">Omschrijving (optioneel)<input id="np-notes" type="text" placeholder="Waar gaat dit schema over?" /></label>
               <button class="primary" @click=${this._submitProtocol}>Toevoegen</button>
               <button class="link" @click=${() => (this._protoForm = false)}>Annuleer</button>
             </div>`
@@ -658,36 +890,59 @@ export class PuppyTrackerPanel extends LitElement {
         ${protos.map(
           (p) => html`
             <div class="proto">
-              <div class="proto-head">
-                <strong>${p.name}</strong>
-                <span>
-                  <button class="link" @click=${() => (this._stepForm = this._stepForm === p.id ? undefined : p.id)}>+ Stap</button>
-                  ${this._confirm?.kind === "protocol" && this._confirm.id === p.id
-                    ? html`<span class="confirm">Zeker?
-                        <button class="link danger" @click=${() => this._removeProtocol(p.id)}>Ja</button>
-                        <button class="link" @click=${() => (this._confirm = undefined)}>Nee</button></span>`
-                    : html`<button class="link danger" @click=${() => (this._confirm = { kind: "protocol", id: p.id })}>Verwijderen</button>`}
-                </span>
-              </div>
-              ${p.notes ? html`<div class="proto-note">${p.notes}</div>` : nothing}
+              ${this._editProto === p.id
+                ? html`<div class="inline-form">
+                    <label class="fld grow">Naam<input id="ep-name" type="text" .value=${p.name} /></label>
+                    <label class="fld">Startdatum<input id="ep-start" type="date" .value=${p.start_date ?? ""} /></label>
+                    <label class="fld grow">Omschrijving<input id="ep-notes" type="text" .value=${p.notes} placeholder="Waar gaat dit schema over?" /></label>
+                    <button class="primary" @click=${() => this._submitProtoEdit(p)}>Opslaan</button>
+                    <button class="link" @click=${() => (this._editProto = undefined)}>Annuleer</button>
+                  </div>`
+                : html`
+                    <div class="proto-head">
+                      <strong>${p.name}</strong>
+                      <span>
+                        <button class="link" @click=${() => (this._editProto = p.id)}>Bewerken</button>
+                        <button class="link" @click=${() => { this._stepForm = this._stepForm === p.id ? undefined : p.id; }}>+ Stap</button>
+                        ${this._confirm?.kind === "protocol" && this._confirm.id === p.id
+                          ? html`<span class="confirm">Zeker?
+                              <button class="link danger" @click=${() => this._removeProtocol(p.id)}>Ja</button>
+                              <button class="link" @click=${() => (this._confirm = undefined)}>Nee</button></span>`
+                          : html`<button class="link danger" @click=${() => (this._confirm = { kind: "protocol", id: p.id })}>Verwijderen</button>`}
+                      </span>
+                    </div>
+                    ${p.notes ? html`<div class="proto-note">${p.notes}</div>` : nothing}
+                  `}
               ${this._stepForm === p.id
                 ? html`<div class="inline-form">
-                    <input id="ns-title" type="text" placeholder="Titel van de stap" />
-                    <input id="ns-off" type="number" placeholder="dag-offset" .value=${String(p.steps.length)} />
-                    <button class="primary" @click=${() => this._submitStep(p.id)}>Toevoegen</button>
+                    <label class="fld grow">Titel<input id="ns-title" type="text" placeholder="Titel van de stap" /></label>
+                    <label class="fld">Datum<input id="ns-date" type="date" .value=${this._nextStepDate(p, s.today)} /></label>
+                    <button class="primary" @click=${() => this._submitStep(p)}>Toevoegen</button>
                     <button class="link" @click=${() => (this._stepForm = undefined)}>Annuleer</button>
                   </div>`
                 : nothing}
               <div class="steps">
-                ${p.steps.map(
-                  (st) => html`
-                    <div class="step ${this._isToday(st.effective_date) ? "today" : ""} ${st.done_at ? "done" : ""}">
-                      <input type="checkbox" .checked=${!!st.done_at} @change=${() => this._toggleStep(st)} />
-                      <span class="step-date">${this._fmt(st.effective_date)}</span>
-                      <span class="step-title">${st.title}</span>
-                      ${this._deferControls(st)}
-                    </div>
-                  `,
+                ${p.steps.map((st) =>
+                  this._editStep === st.id
+                    ? html`
+                        <div class="step editing">
+                          <input id="es-title" type="text" .value=${st.title} placeholder="titel" />
+                          <input id="es-date" type="date" .value=${st.effective_date ?? ""} />
+                          <input id="es-notes" type="text" .value=${st.notes} placeholder="notitie (optioneel)" />
+                          <button class="primary" @click=${() => this._submitStepEdit(st, p)}>Opslaan</button>
+                          <button class="link" @click=${() => (this._editStep = undefined)}>Annuleer</button>
+                        </div>
+                      `
+                    : html`
+                        <div class="step ${this._isToday(st.effective_date) ? "today" : ""} ${st.done_at ? "done" : ""}">
+                          <input type="checkbox" .checked=${!!st.done_at} @change=${() => this._toggleStep(st)} />
+                          <span class="step-date">${this._fmt(st.effective_date)}</span>
+                          <span class="step-title">${st.title}</span>
+                          <button class="link" @click=${() => (this._editStep = st.id)}>Bewerken</button>
+                          ${this._deferControls(st)}
+                          ${this._stepDelete(st)}
+                        </div>
+                      `,
                 )}
               </div>
             </div>
@@ -705,10 +960,22 @@ export class PuppyTrackerPanel extends LitElement {
       <section>
         <h2>Configuratie</h2>
         <div class="settings">
+          <div class="photo-field">
+            <div class="photo-preview">
+              ${p?.photo_url ? html`<img src=${p.photo_url} alt="foto van ${p.name}" />` : html`<ha-icon icon="mdi:dog"></ha-icon>`}
+            </div>
+            <div class="photo-actions">
+              <label class="filebtn">
+                Foto kiezen…
+                <input type="file" accept="image/*" @change=${this._onPhotoFile} hidden />
+              </label>
+              ${p?.photo_url ? html`<button class="link danger" @click=${() => this._savePhoto("")}>Verwijderen</button>` : nothing}
+              <div class="muted small">Wordt automatisch verkleind en opgeslagen.</div>
+            </div>
+          </div>
           <label>Naam<input type="text" id="name" .value=${p?.name ?? ""} /></label>
           <label>Geboortedatum<input type="date" id="birth" .value=${p?.birth_date ?? ""} /></label>
           <label>Thuiskomstdatum<input type="date" id="home" .value=${p?.homecoming_date ?? ""} /></label>
-          <label>Foto-URL (optioneel)<input type="text" id="photo" placeholder="https://… of /local/beer.jpg" .value=${p?.photo_url ?? ""} /></label>
           <button class="primary" @click=${this._saveConfig}>Opslaan</button>
           <p class="muted">Bij het wijzigen van de thuiskomstdatum schuift het socialisatie- en benchschema automatisch mee.</p>
         </div>
@@ -771,6 +1038,22 @@ export class PuppyTrackerPanel extends LitElement {
     .cols { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; align-items: start; }
     .cols.narrow { grid-template-columns: 1fr; }
 
+    /* Day-view timeline */
+    .timeline-scroll { position: relative; max-height: 620px; overflow-y: auto; border: 1px solid var(--divider-color, #eee); border-radius: 10px; padding: 4px 0; }
+    .timeline { position: relative; margin-left: 54px; margin-right: 8px; }
+    .hour-line { position: absolute; left: -54px; right: 0; height: 0; border-top: 1px solid var(--divider-color, #eee); }
+    .hour-line.night::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 60px; background: color-mix(in srgb, var(--primary-text-color) 7%, transparent); z-index: 0; pointer-events: none; }
+    .hour-label { position: absolute; left: 0; top: -8px; width: 46px; text-align: right; font-size: .72rem; opacity: .6; font-variant-numeric: tabular-nums; }
+    .tl-item { position: absolute; left: 4px; right: 4px; height: 24px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border-radius: 6px; box-sizing: border-box; z-index: 1; background: color-mix(in srgb, var(--rc) 20%, var(--card-background-color)); border-left: 3px solid var(--rc); }
+    .tl-item.checked { opacity: .5; }
+    .tl-item.checked .tl-label { text-decoration: line-through; }
+    .tl-time { font-size: .72rem; opacity: .8; font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+    .tl-label { flex: 1; font-size: .82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tl-item input { width: 16px; height: 16px; flex: 0 0 auto; }
+    .now-line { position: absolute; left: -54px; right: 0; height: 0; border-top: 2px solid var(--error-color, #d33); z-index: 3; pointer-events: none; }
+    .now-dot { position: absolute; left: -4px; top: -5px; width: 9px; height: 9px; border-radius: 50%; background: var(--error-color, #d33); }
+    .now-time { position: absolute; left: 6px; top: -18px; font-size: .68rem; font-weight: 600; color: var(--error-color, #d33); background: var(--card-background-color); padding: 0 3px; border-radius: 3px; }
+
     /* Schedule rows */
     .schedule, .today-items { display: flex; flex-direction: column; gap: 2px; }
     .row { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; border-left: 4px solid var(--rc, #888); }
@@ -814,6 +1097,26 @@ export class PuppyTrackerPanel extends LitElement {
     .soc-act { font-weight: 600; font-size: .85rem; margin: 2px 0; }
     .soc-note { font-size: .75rem; opacity: .7; }
 
+    /* Socialization week checklist */
+    .weeks { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+    .week-card { border: 1px solid var(--divider-color, #ddd); border-radius: 12px; padding: 10px 12px; background: color-mix(in srgb, var(--primary-text-color) 3%, transparent); }
+    .week-card.current { border-color: var(--primary-color); box-shadow: 0 0 0 1px var(--primary-color) inset; }
+    .week-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .week-head .badge { margin-left: 6px; }
+    .week-progress { font-size: .8rem; opacity: .7; font-variant-numeric: tabular-nums; }
+    .week-items { display: flex; flex-direction: column; gap: 4px; }
+    .soc-item { display: flex; align-items: center; gap: 8px; padding: 6px 4px; border-radius: 8px; }
+    .soc-item.done .soc-item-title { text-decoration: line-through; opacity: .5; }
+    .cat-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+    .soc-item-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+    .soc-item-title { font-size: .88rem; }
+    .soc-item-note { font-size: .74rem; opacity: .65; }
+    .soc-item-actions { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+    .iconbtn { background: transparent; border: 1px solid var(--divider-color, #ccc); border-radius: 6px; width: 24px; height: 24px; padding: 0; cursor: pointer; color: inherit; line-height: 1; }
+    .iconbtn:disabled { opacity: .3; cursor: default; }
+    .soc-item.editing { flex-wrap: wrap; gap: 6px; }
+    .soc-item.editing input[type="text"] { flex: 1 1 140px; padding: 6px; border-radius: 6px; border: 1px solid var(--divider-color, #ccc); background: var(--card-background-color); color: inherit; font: inherit; }
+
     /* Schedules */
     .tasks { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
     .task, .step { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 8px; }
@@ -827,17 +1130,35 @@ export class PuppyTrackerPanel extends LitElement {
     .proto-note { font-size: .8rem; opacity: .7; margin: 4px 0; }
     .steps { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
 
-    .defer-inline { display: inline-flex; align-items: center; gap: 4px; }
-    .defer-inline input { width: 56px; padding: 4px; border-radius: 6px; border: 1px solid var(--divider-color, #ccc); background: var(--card-background-color); color: inherit; }
+    .defer-inline { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 2px 6px; }
+    .defer-inline input { width: 48px; padding: 4px; border-radius: 6px; border: 1px solid var(--divider-color, #ccc); background: var(--card-background-color); color: inherit; }
     .defer-inline .dagen { font-size: .78rem; opacity: .7; }
+
+    .soc-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 8px; }
+    .soc-actions .defer-inline { flex-basis: 100%; }
+    .soc-day.editing { display: flex; flex-direction: column; gap: 6px; }
+    .soc-day.editing input { padding: 6px; border-radius: 6px; border: 1px solid var(--divider-color, #ccc); background: var(--card-background-color); color: inherit; font: inherit; }
+    .step.editing { flex-wrap: wrap; gap: 6px; padding: 8px 6px; }
+    .step.editing input[type="text"] { flex: 1 1 160px; }
+    .step.editing input { padding: 6px; border-radius: 6px; border: 1px solid var(--divider-color, #ccc); background: var(--card-background-color); color: inherit; font: inherit; }
     .confirm { font-size: .8rem; display: inline-flex; align-items: center; gap: 4px; }
     .inline-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; padding: 10px; border: 1px dashed var(--divider-color, #ccc); border-radius: 10px; }
     .inline-form input[type="text"] { flex: 1; min-width: 160px; }
     .inline-form input { padding: 8px; border-radius: 8px; border: 1px solid var(--divider-color, #ccc); background: var(--card-background-color); color: inherit; }
+    .inline-form .fld { display: flex; flex-direction: column; gap: 3px; font-size: .72rem; opacity: .85; }
+    .inline-form .fld.grow { flex: 1 1 160px; }
+    .inline-form .fld input { width: 100%; box-sizing: border-box; }
 
     /* Config */
     .settings { display: flex; flex-direction: column; gap: 10px; max-width: 360px; }
     .settings label { display: flex; flex-direction: column; font-size: .85rem; gap: 4px; }
     .settings input { padding: 8px; border-radius: 8px; border: 1px solid var(--divider-color, #ccc); background: var(--card-background-color); color: inherit; }
+    .photo-field { display: flex; gap: 14px; align-items: center; }
+    .photo-preview { width: 96px; height: 96px; border-radius: 12px; overflow: hidden; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, var(--primary-color), color-mix(in srgb, var(--primary-color) 40%, #000)); color: #fff; }
+    .photo-preview img { width: 100%; height: 100%; object-fit: cover; }
+    .photo-preview ha-icon { --mdc-icon-size: 48px; }
+    .photo-actions { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+    .filebtn { display: inline-block; cursor: pointer; background: transparent; border: 1px solid var(--primary-color); color: var(--primary-color); border-radius: 8px; padding: 8px 14px; font-size: .9rem; }
+    .small { font-size: .78rem; }
   `;
 }
