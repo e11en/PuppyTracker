@@ -4,10 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.components.sensor import (
+    ENTITY_ID_FORMAT,
+    SensorDeviceClass,
+    SensorEntity,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity import async_generate_entity_id
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -55,6 +60,7 @@ class PuppyAgeSensor(_BasePuppySensor):
     def __init__(self, coordinator, entry, name) -> None:
         super().__init__(coordinator, entry, name)
         self._attr_unique_id = f"{entry.entry_id}_age_weeks"
+        self.entity_id = async_generate_entity_id(ENTITY_ID_FORMAT, "puppy_tracker_age_weeks", hass=coordinator.hass)
 
     @property
     def native_value(self) -> int | None:
@@ -78,6 +84,7 @@ class PuppyPhaseSensor(_BasePuppySensor):
     def __init__(self, coordinator, entry, name) -> None:
         super().__init__(coordinator, entry, name)
         self._attr_unique_id = f"{entry.entry_id}_phase"
+        self.entity_id = async_generate_entity_id(ENTITY_ID_FORMAT, "puppy_tracker_phase", hass=coordinator.hass)
 
     @property
     def native_value(self) -> str | None:
@@ -107,6 +114,7 @@ class PuppyNextPeeSensor(_BasePuppySensor):
     def __init__(self, coordinator, entry, name) -> None:
         super().__init__(coordinator, entry, name)
         self._attr_unique_id = f"{entry.entry_id}_next_pee"
+        self.entity_id = async_generate_entity_id(ENTITY_ID_FORMAT, "puppy_tracker_next_pee", hass=coordinator.hass)
 
     @property
     def native_value(self):

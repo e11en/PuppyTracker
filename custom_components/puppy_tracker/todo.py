@@ -14,6 +14,7 @@ from homeassistant.components.todo import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity import async_generate_entity_id
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 import homeassistant.util.dt as dt_util
 
@@ -30,7 +31,7 @@ async def async_setup_entry(
 ) -> None:
     db: PuppyTrackerDB = hass.data[DOMAIN][entry.entry_id]["db"]
     name = entry.data.get("name", "Puppy")
-    async_add_entities([DailyChecklistTodo(db, entry, name)])
+    async_add_entities([DailyChecklistTodo(hass, db, entry, name)])
 
 
 class DailyChecklistTodo(TodoListEntity):
@@ -41,10 +42,11 @@ class DailyChecklistTodo(TodoListEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "checklist"
 
-    def __init__(self, db: PuppyTrackerDB, entry: ConfigEntry, name: str) -> None:
+    def __init__(self, hass: HomeAssistant, db: PuppyTrackerDB, entry: ConfigEntry, name: str) -> None:
         self._db = db
         self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_daily_todo"
+        self.entity_id = async_generate_entity_id("todo.{}", "puppy_tracker_daily_checklist", hass=hass)
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name="Puppy Tracker",
