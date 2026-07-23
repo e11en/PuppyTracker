@@ -15,6 +15,8 @@ CONF_BIRTH_DATE = "birth_date"
 CONF_HOMECOMING_DATE = "homecoming_date"
 
 DEFAULT_NAME = "Beer"
+DEFAULT_LANGUAGE = "nl"
+SUPPORTED_LANGUAGES = ["nl", "en"]
 
 # Frontend
 PANEL_URL_PATH = "puppy-tracker"

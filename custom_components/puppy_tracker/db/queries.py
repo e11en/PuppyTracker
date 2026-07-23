@@ -420,6 +420,16 @@ async def add_phase(
     await conn.commit()
 
 
+async def clear_seeded_defaults(conn: aiosqlite.Connection, seed_keys: list[str]) -> None:
+    """Delete seeded phases, schedule items and the given seeded protocols
+    (their steps cascade). Leaves user-created protocols and tasks intact."""
+    await conn.execute("DELETE FROM phases")
+    await conn.execute("DELETE FROM schedule_items")
+    for key in seed_keys:
+        await conn.execute("DELETE FROM protocols WHERE seed_key=?", (key,))
+    await conn.commit()
+
+
 async def update_phase(conn: aiosqlite.Connection, key: str, **fields: Any) -> None:
     allowed = {"title", "week_start", "week_end", "pee_interval_hours", "focus", "info_cards"}
     sets: dict[str, Any] = {}

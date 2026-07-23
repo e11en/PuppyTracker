@@ -78,6 +78,7 @@ type CatMap = Record<string, { label: string; color: string; icon: string }>;
 interface State {
   puppy: { name: string; birth_date: string | null; homecoming_date: string | null; notes: string; photo_url?: string } | null;
   today: string;
+  language: Lang;
   age_weeks: number | null;
   age_days: number | null;
   age_months: number | null;
@@ -97,10 +98,106 @@ interface State {
 
 type Tab = "vandaag" | "config";
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: "vandaag", label: "Vandaag" },
-  { id: "config", label: "Configuratie" },
-];
+const TABS: Tab[] = ["vandaag", "config"];
+
+type Lang = "nl" | "en";
+
+// UI strings. Content (phase/socialization/schedule text) is translated server-side.
+const I18N: Record<string, { nl: string; en: string }> = {
+  "tab.vandaag": { nl: "Vandaag", en: "Today" },
+  "tab.config": { nl: "Configuratie", en: "Configuration" },
+  loading: { nl: "Laden…", en: "Loading…" },
+  menu: { nl: "Menu", en: "Menu" },
+  ageUnknown: { nl: "leeftijd onbekend", en: "age unknown" },
+  week: { nl: "week", en: "week" },
+  weeks: { nl: "weken", en: "weeks" },
+  day: { nl: "dag", en: "day" },
+  days: { nl: "dagen", en: "days" },
+  old: { nl: "oud", en: "old" },
+  wkn: { nl: "wkn", en: "wks" },
+  wk: { nl: "wk", en: "wk" },
+  focus: { nl: "Focus", en: "Focus" },
+  setBirthdate: { nl: "Stel een geboortedatum in bij Configuratie.", en: "Set a birth date in Configuration." },
+  fear: { nl: "Angstperiode: nieuwe prikkels positief en rustig opbouwen.", en: "Fear period: introduce new stimuli positively and calmly." },
+  nextPee: { nl: "Volgende plaspauze:", en: "Next potty break:" },
+  inHrsMin: { nl: "over {h} u {m} min", en: "in {h} h {m} min" },
+  inMin: { nl: "over {m} min", en: "in {m} min" },
+  daySchedule: { nl: "Dagschema & taken (vandaag)", en: "Day schedule & tasks (today)" },
+  restDay: { nl: "Rustdag", en: "Rest day" },
+  todayItems: { nl: "Taken & schema-stappen vandaag", en: "Tasks & schedule steps today" },
+  upcoming: { nl: "Belangrijke gebeurtenissen (komende 7 dagen)", en: "Important events (next 7 days)" },
+  nothingPlanned: { nl: "Niets gepland deze week.", en: "Nothing planned this week." },
+  now: { nl: "Nu", en: "Now" },
+  past: { nl: "voorbij", en: "past" },
+  socialization: { nl: "Socialisatie", en: "Socialization" },
+  socializationSub: { nl: "(7-12 weken · weekchecklist)", en: "(7-12 weeks · weekly checklist)" },
+  noSocProgram: { nl: "Geen socialisatieprogramma. Stel een thuiskomstdatum in.", en: "No socialization program. Set a homecoming date." },
+  noActivities: { nl: "Geen activiteiten deze week.", en: "No activities this week." },
+  addActivity: { nl: "+ activiteit", en: "+ activity" },
+  activity: { nl: "Activiteit", en: "Activity" },
+  category: { nl: "Categorie", en: "Category" },
+  prevWeek: { nl: "Vorige week", en: "Previous week" },
+  nextWeek: { nl: "Volgende week", en: "Next week" },
+  schedulesTasks: { nl: "Schema's & taken", en: "Schedules & tasks" },
+  addTask: { nl: "+ Taak", en: "+ Task" },
+  addSchema: { nl: "+ Schema", en: "+ Schedule" },
+  addStep: { nl: "+ Stap", en: "+ Step" },
+  addItem: { nl: "+ Item", en: "+ Item" },
+  addCard: { nl: "+ kaart", en: "+ card" },
+  name: { nl: "Naam", en: "Name" },
+  title: { nl: "Titel", en: "Title" },
+  date: { nl: "Datum", en: "Date" },
+  time: { nl: "Tijd", en: "Time" },
+  type: { nl: "Type", en: "Type" },
+  label: { nl: "Label", en: "Label" },
+  note: { nl: "Notitie", en: "Note" },
+  noteOptional: { nl: "notitie (optioneel)", en: "note (optional)" },
+  startDate: { nl: "Startdatum", en: "Start date" },
+  description: { nl: "Omschrijving", en: "Description" },
+  descriptionOptional: { nl: "Omschrijving (optioneel)", en: "Description (optional)" },
+  add: { nl: "Toevoegen", en: "Add" },
+  save: { nl: "Opslaan", en: "Save" },
+  cancel: { nl: "Annuleer", en: "Cancel" },
+  edit: { nl: "Bewerken", en: "Edit" },
+  remove: { nl: "Verwijderen", en: "Remove" },
+  removeQ: { nl: "Verwijderen?", en: "Remove?" },
+  sureQ: { nl: "Zeker?", en: "Sure?" },
+  yes: { nl: "Ja", en: "Yes" },
+  no: { nl: "Nee", en: "No" },
+  defer: { nl: "Uitstellen…", en: "Postpone…" },
+  apply: { nl: "Toepassen", en: "Apply" },
+  taskTitlePh: { nl: "Titel (bv. Dierenarts)", en: "Title (e.g. Vet)" },
+  schemaNamePh: { nl: "bv. Bench verplaatsen", en: "e.g. Move the crate" },
+  schemaAboutPh: { nl: "Waar gaat dit schema over?", en: "What is this schedule about?" },
+  stepTitlePh: { nl: "Titel van de stap", en: "Step title" },
+  activityPh: { nl: "bv. Trein horen", en: "e.g. Hear a train" },
+  phases: { nl: "Fases", en: "Phases" },
+  editPhase: { nl: "Fase bewerken", en: "Edit phase" },
+  phaseSchedule: { nl: "Dagschema voor deze fase", en: "Day schedule for this phase" },
+  items: { nl: "items", en: "items" },
+  noPhaseItems: { nl: "Nog geen items voor deze fase.", en: "No items for this phase yet." },
+  fromWk: { nl: "Vanaf (wk)", en: "From (wk)" },
+  toWk: { nl: "Tot (wk)", en: "To (wk)" },
+  peeInterval: { nl: "Plas-interval (u)", en: "Potty interval (h)" },
+  focusPoints: { nl: "Focuspunten (één per regel)", en: "Focus points (one per line)" },
+  infoCards: { nl: "Info-kaarten", en: "Info cards" },
+  iconPh: { nl: "Icoon (mdi:...)", en: "Icon (mdi:...)" },
+  pointsPh: { nl: "Punten (één per regel)", en: "Points (one per line)" },
+  removeCard: { nl: "Kaart verwijderen", en: "Remove card" },
+  config: { nl: "Configuratie", en: "Configuration" },
+  puppy: { nl: "Puppy", en: "Puppy" },
+  choosePhoto: { nl: "Foto kiezen…", en: "Choose photo…" },
+  photoHint: { nl: "Wordt automatisch verkleind en opgeslagen.", en: "Automatically resized and saved." },
+  birthDate: { nl: "Geboortedatum", en: "Birth date" },
+  homecomingDate: { nl: "Thuiskomstdatum", en: "Homecoming date" },
+  homecomingHint: { nl: "Bij het wijzigen van de thuiskomstdatum schuift het socialisatie- en benchschema automatisch mee.", en: "Changing the homecoming date shifts the socialization and crate schedules along." },
+  language: { nl: "Taal", en: "Language" },
+  reloadDefaults: { nl: "Standaardinhoud herladen (huidige taal)", en: "Reload default content (current language)" },
+  reloadDefaultsHint: { nl: "Vervangt de standaard fase-teksten, socialisatie, dagschema's en bench door de standaard in de gekozen taal. Je eigen taken en schema's blijven.", en: "Replaces the default phase texts, socialization, day schedules and crate protocol with the defaults in the chosen language. Your own tasks and schedules stay." },
+  reloadConfirm: { nl: "Weet je het zeker? Dit vervangt de standaardinhoud.", en: "Are you sure? This replaces the default content." },
+  deferPrompt: { nl: "dagen", en: "days" },
+  deferWeek: { nl: "Week", en: "Week" },
+};
 
 const NL_DATE = new Intl.DateTimeFormat("nl-NL", { weekday: "short", day: "numeric", month: "short" });
 const NL_WEEKDAY = new Intl.DateTimeFormat("nl-NL", { weekday: "long", day: "numeric", month: "short" });
@@ -140,6 +237,7 @@ export class PuppyTrackerPanel extends LitElement {
   @state() private _socAddWeek?: number; // socialization week index we're adding to
   @state() private _editPhase?: string; // phase key being edited
   @state() private _phaseDraft?: PhaseDraft;
+  @state() private _reseedConfirm = false;
   @state() private _confirm?: { kind: "task" | "protocol" | "step"; id: number };
 
   private _timer?: number;
@@ -150,7 +248,7 @@ export class PuppyTrackerPanel extends LitElement {
     super.connectedCallback();
     this._timer = window.setInterval(() => this.requestUpdate(), 1000);
     const saved = localStorage.getItem("pt-tab") as Tab | null;
-    if (saved && TABS.some((t) => t.id === saved)) this._tab = saved;
+    if (saved && (TABS as string[]).includes(saved)) this._tab = saved;
   }
 
   private _selectTab(id: Tab): void {
@@ -182,6 +280,17 @@ export class PuppyTrackerPanel extends LitElement {
         this._didScroll = true;
       }
     }
+  }
+
+  private get _lang(): Lang {
+    return this._state?.language === "en" ? "en" : "nl";
+  }
+
+  private t(key: string, subs?: Record<string, string | number>): string {
+    const entry = I18N[key];
+    let str = entry ? entry[this._lang] : key;
+    if (subs) for (const [k, v] of Object.entries(subs)) str = str.replace(`{${k}}`, String(v));
+    return str;
   }
 
   private async _ws<T = unknown>(type: string, payload: Record<string, unknown> = {}): Promise<T | undefined> {
@@ -415,6 +524,17 @@ export class PuppyTrackerPanel extends LitElement {
     if (r) this._merge({ schedules: r.schedules });
   }
 
+  private async _setLanguage(lang: Lang): Promise<void> {
+    const s = await this._ws<State>("set_language", { language: lang });
+    if (s && s.puppy !== undefined) this._state = s;
+  }
+
+  private async _reloadDefaults(): Promise<void> {
+    this._reseedConfirm = false;
+    const s = await this._ws<State>("reseed_defaults");
+    if (s && s.puppy !== undefined) this._state = s;
+  }
+
   private async _saveConfig(): Promise<void> {
     const q = (id: string) => (this.renderRoot.querySelector(id) as HTMLInputElement)?.value ?? "";
     // photo_url is omitted so the backend keeps the existing photo.
@@ -476,17 +596,17 @@ export class PuppyTrackerPanel extends LitElement {
 
   private _ageText(): string {
     const days = this._state?.age_days;
-    if (days == null) return "leeftijd onbekend";
+    if (days == null) return this.t("ageUnknown");
     const w = Math.floor(days / 7);
     const d = days % 7;
-    return `${w} ${w === 1 ? "week" : "weken"} & ${d} ${d === 1 ? "dag" : "dagen"} oud`;
+    return `${w} ${this.t(w === 1 ? "week" : "weeks")} & ${d} ${this.t(d === 1 ? "day" : "days")} ${this.t("old")}`;
   }
 
   private _countdownTo(at: Date): string {
     const secs = Math.max(0, Math.round((at.getTime() - Date.now()) / 1000));
     const h = Math.floor(secs / 3600);
     const m = Math.floor((secs % 3600) / 60);
-    return h > 0 ? `over ${h} u ${m} min` : `over ${m} min`;
+    return h > 0 ? this.t("inHrsMin", { h, m }) : this.t("inMin", { m });
   }
 
   /** Next pee = the first 'plassen' item in the active-phase schedule after now. */
@@ -561,13 +681,13 @@ export class PuppyTrackerPanel extends LitElement {
         <span class="defer-inline">
           <input type="number" .value=${String(this._defer.days)}
             @input=${(e: Event) => (this._defer = { stepId: step.id, days: parseInt((e.target as HTMLInputElement).value, 10) || 0 })} />
-          <span class="dagen">dagen</span>
-          <button class="link" @click=${this._applyDefer}>Toepassen</button>
-          <button class="link" @click=${() => (this._defer = undefined)}>Annuleer</button>
+          <span class="dagen">${this.t("days")}</span>
+          <button class="link" @click=${this._applyDefer}>${this.t("apply")}</button>
+          <button class="link" @click=${() => (this._defer = undefined)}>${this.t("cancel")}</button>
         </span>
       `;
     }
-    return html`<button class="link" @click=${() => (this._defer = { stepId: step.id, days: 1 })}>Uitstellen…</button>`;
+    return html`<button class="link" @click=${() => (this._defer = { stepId: step.id, days: 1 })}>${this.t("defer")}</button>`;
   }
 
   // ---- Render ------------------------------------------------------------
@@ -579,7 +699,7 @@ export class PuppyTrackerPanel extends LitElement {
         ${this._renderHeader()}
         ${this._error ? html`<div class="err">${this._error}</div>` : nothing}
         <div class="content">
-          ${!s ? html`<div class="loading">Laden…</div>` : this._renderTab(s)}
+          ${!s ? html`<div class="loading">${this.t("loading")}</div>` : this._renderTab(s)}
         </div>
       </div>
     `;
@@ -588,14 +708,14 @@ export class PuppyTrackerPanel extends LitElement {
   private _renderHeader() {
     return html`
       <div class="topbar">
-        <ha-icon-button class="menu" @click=${this._toggleMenu} title="Menu">
+        <ha-icon-button class="menu" @click=${this._toggleMenu} title=${this.t("menu")}>
           <ha-icon icon="mdi:menu"></ha-icon>
         </ha-icon-button>
         <div class="title">Puppy Tracker</div>
       </div>
       <div class="tabs">
         ${TABS.map(
-          (t) => html`<button class="tab ${this._tab === t.id ? "active" : ""}" @click=${() => this._selectTab(t.id)}>${t.label}</button>`,
+          (tab) => html`<button class="tab ${this._tab === tab ? "active" : ""}" @click=${() => this._selectTab(tab)}>${this.t("tab." + tab)}</button>`,
         )}
       </div>
     `;
@@ -640,15 +760,15 @@ export class PuppyTrackerPanel extends LitElement {
                   <div class="hero-phase">
                     <span class="dot green"></span>
                     <strong>${phase.title}</strong>
-                    <small>(${phase.week_start}-${phase.week_end} wkn)</small>
+                    <small>(${phase.week_start}-${phase.week_end} ${this.t("wkn")})</small>
                   </div>
-                  <div class="hero-focus">Focus: ${phase.focus.join(" · ")}</div>
+                  <div class="hero-focus">${this.t("focus")}: ${phase.focus.join(" · ")}</div>
                 `
-              : html`<div class="hero-focus">Stel een geboortedatum in bij Configuratie.</div>`}
-            ${s.in_fear_period ? html`<div class="hero-fear">⚠ Angstperiode: nieuwe prikkels positief en rustig opbouwen.</div>` : nothing}
+              : html`<div class="hero-focus">${this.t("setBirthdate")}</div>`}
+            ${s.in_fear_period ? html`<div class="hero-fear">⚠ ${this.t("fear")}</div>` : nothing}
             <div class="pee">
               <span class="pee-text">
-                Volgende plaspauze:
+                ${this.t("nextPee")}
                 <strong>${np ? np.time : "—"}</strong>
                 ${np ? html`<em>${this._countdownTo(np.at)}</em>` : nothing}
               </span>
@@ -703,9 +823,9 @@ export class PuppyTrackerPanel extends LitElement {
     return html`
       <section>
         <div class="sec-head">
-          <h2><ha-icon icon="mdi:clock-outline"></ha-icon> Dagschema & taken (vandaag)</h2>
+          <h2><ha-icon icon="mdi:clock-outline"></ha-icon> ${this.t("daySchedule")}</h2>
         </div>
-        ${rest ? html`<div class="rest-banner">💥 Rustdag — ${rest.title}</div>` : nothing}
+        ${rest ? html`<div class="rest-banner">💥 ${this.t("restDay")} — ${rest.title}</div>` : nothing}
         <div class="timeline-scroll">
           <div class="timeline" style="height:${totalH}px">
             ${hours.map(
@@ -737,7 +857,7 @@ export class PuppyTrackerPanel extends LitElement {
 
         ${steps.length || tasks.length
           ? html`
-              <div class="subhead">Taken & schema-stappen vandaag</div>
+              <div class="subhead">${this.t("todayItems")}</div>
               <div class="today-items">
                 ${tasks.map(
                   (t) => html`
@@ -773,8 +893,8 @@ export class PuppyTrackerPanel extends LitElement {
     let lastDate = "";
     return html`
       <section>
-        <h2><ha-icon icon="mdi:calendar-star"></ha-icon> Belangrijke gebeurtenissen (komende 7 dagen)</h2>
-        ${rows.length === 0 ? html`<p class="muted">Niets gepland deze week.</p>` : nothing}
+        <h2><ha-icon icon="mdi:calendar-star"></ha-icon> ${this.t("upcoming")}</h2>
+        ${rows.length === 0 ? html`<p class="muted">${this.t("nothingPlanned")}</p>` : nothing}
         <div class="events">
           ${rows.map((r) => {
             const header = r.date !== lastDate;
@@ -798,22 +918,22 @@ export class PuppyTrackerPanel extends LitElement {
   private _renderPhases(s: State) {
     return html`
       <section>
-        <h2>Fases</h2>
+        <h2>${this.t("phases")}</h2>
         ${s.phases.map((p) => {
           const active = s.phase?.key === p.key;
           return html`
             <details class="phase" ?open=${active}>
               <summary>
-                <span>${p.title} <small>(${p.week_start}-${p.week_end} wkn)</small></span>
-                ${active ? html`<span class="badge">Nu</span>` : nothing}
+                <span>${p.title} <small>(${p.week_start}-${p.week_end} ${this.t("wkn")})</small></span>
+                ${active ? html`<span class="badge">${this.t("now")}</span>` : nothing}
               </summary>
               <div class="phase-body">
                 ${this._editPhase === p.key
                   ? this._renderPhaseEditForm(p)
                   : html`
                       <div class="phase-toolbar">
-                        <button class="icon-link" title="Fase bewerken" @click=${() => this._startPhaseEdit(p)}>
-                          <ha-icon icon="mdi:pencil"></ha-icon><span class="lbl">Fase bewerken</span>
+                        <button class="icon-link" title=${this.t("editPhase")} @click=${() => this._startPhaseEdit(p)}>
+                          <ha-icon icon="mdi:pencil"></ha-icon><span class="lbl">${this.t("editPhase")}</span>
                         </button>
                       </div>
                       <ul class="focus">${p.focus.map((f) => html`<li>${f}</li>`)}</ul>
@@ -908,41 +1028,41 @@ export class PuppyTrackerPanel extends LitElement {
     const val = (e: Event) => (e.target as HTMLInputElement).value;
     return html`
       <div class="phase-edit">
-        <label class="fld grow">Titel
+        <label class="fld grow">${this.t("title")}
           <input type="text" .value=${live(d.title)} @input=${(e: Event) => this._pd({ title: val(e) })} />
         </label>
         <div class="row3">
-          <label class="fld">Vanaf (wk)
+          <label class="fld">${this.t("fromWk")}
             <input type="number" .value=${live(String(d.week_start))} @input=${(e: Event) => this._pd({ week_start: parseInt(val(e), 10) || 0 })} />
           </label>
-          <label class="fld">Tot (wk)
+          <label class="fld">${this.t("toWk")}
             <input type="number" .value=${live(String(d.week_end))} @input=${(e: Event) => this._pd({ week_end: parseInt(val(e), 10) || 0 })} />
           </label>
-          <label class="fld">Plas-interval (u)
+          <label class="fld">${this.t("peeInterval")}
             <input type="number" .value=${live(String(d.pee_interval_hours))} @input=${(e: Event) => this._pd({ pee_interval_hours: parseInt(val(e), 10) || 1 })} />
           </label>
         </div>
-        <label class="fld grow">Focuspunten (één per regel)
+        <label class="fld grow">${this.t("focusPoints")}
           <textarea rows="4" .value=${live(d.focusText)} @input=${(e: Event) => this._pd({ focusText: (e.target as HTMLTextAreaElement).value })}></textarea>
         </label>
         <div class="cards-edit">
-          <div class="ce-head"><strong>Info-kaarten</strong><button class="link" @click=${this._pdAddCard}>+ kaart</button></div>
+          <div class="ce-head"><strong>${this.t("infoCards")}</strong><button class="link" @click=${this._pdAddCard}>${this.t("addCard")}</button></div>
           ${d.cards.map(
             (c, i) => html`
               <div class="ce-card">
                 <div class="ce-row">
-                  <input type="text" placeholder="Titel" .value=${live(c.title)} @input=${(e: Event) => this._pdCard(i, { title: val(e) })} />
-                  <input type="text" placeholder="Icoon (mdi:...)" .value=${live(c.icon)} @input=${(e: Event) => this._pdCard(i, { icon: val(e) })} />
-                  <button class="icon-link danger" title="Kaart verwijderen" @click=${() => this._pdRemoveCard(i)}><ha-icon icon="mdi:delete-outline"></ha-icon></button>
+                  <input type="text" placeholder=${this.t("title")} .value=${live(c.title)} @input=${(e: Event) => this._pdCard(i, { title: val(e) })} />
+                  <input type="text" placeholder=${this.t("iconPh")} .value=${live(c.icon)} @input=${(e: Event) => this._pdCard(i, { icon: val(e) })} />
+                  <button class="icon-link danger" title=${this.t("removeCard")} @click=${() => this._pdRemoveCard(i)}><ha-icon icon="mdi:delete-outline"></ha-icon></button>
                 </div>
-                <textarea rows="3" placeholder="Punten (één per regel)" .value=${live(c.itemsText)} @input=${(e: Event) => this._pdCard(i, { itemsText: (e.target as HTMLTextAreaElement).value })}></textarea>
+                <textarea rows="3" placeholder=${this.t("pointsPh")} .value=${live(c.itemsText)} @input=${(e: Event) => this._pdCard(i, { itemsText: (e.target as HTMLTextAreaElement).value })}></textarea>
               </div>
             `,
           )}
         </div>
         <div class="phase-edit-actions">
-          <button class="primary" @click=${() => this._submitPhaseEdit(p.key)}>Opslaan</button>
-          <button class="link" @click=${() => { this._editPhase = undefined; this._phaseDraft = undefined; }}>Annuleer</button>
+          <button class="primary" @click=${() => this._submitPhaseEdit(p.key)}>${this.t("save")}</button>
+          <button class="link" @click=${() => { this._editPhase = undefined; this._phaseDraft = undefined; }}>${this.t("cancel")}</button>
         </div>
       </div>
     `;
@@ -961,34 +1081,34 @@ export class PuppyTrackerPanel extends LitElement {
         <summary>
           <span class="ps-summary">
             <ha-icon class="chev" icon="mdi:chevron-right"></ha-icon>
-            <ha-icon icon="mdi:clock-outline"></ha-icon> Dagschema voor deze fase
+            <ha-icon icon="mdi:clock-outline"></ha-icon> ${this.t("phaseSchedule")}
           </span>
-          <small class="muted">${items.length} items</small>
+          <small class="muted">${items.length} ${this.t("items")}</small>
         </summary>
         <div class="ps-actions">
-          <button class="link" @click=${() => (this._schedForm = this._schedForm === p.key ? undefined : p.key)}>+ Item</button>
+          <button class="link" @click=${() => (this._schedForm = this._schedForm === p.key ? undefined : p.key)}>${this.t("addItem")}</button>
         </div>
         ${this._schedForm === p.key
           ? html`<div class="inline-form">
-              <label class="fld">Tijd<input id="sc-time" type="time" value="12:00" /></label>
-              <label class="fld grow">Label<input id="sc-label" type="text" placeholder="bv. Plaspauze" /></label>
-              <label class="fld">Type<select id="sc-type">${this._typeOptions(s, "rust")}</select></label>
-              <label class="fld grow">Notitie<input id="sc-notes" type="text" placeholder="uitvoering (optioneel)" /></label>
-              <button class="primary" @click=${() => this._submitSchedItem(p.key)}>Toevoegen</button>
-              <button class="link" @click=${() => (this._schedForm = undefined)}>Annuleer</button>
+              <label class="fld">${this.t("time")}<input id="sc-time" type="time" value="12:00" /></label>
+              <label class="fld grow">${this.t("label")}<input id="sc-label" type="text" placeholder=${this.t("label")} /></label>
+              <label class="fld">${this.t("type")}<select id="sc-type">${this._typeOptions(s, "rust")}</select></label>
+              <label class="fld grow">${this.t("note")}<input id="sc-notes" type="text" placeholder=${this.t("noteOptional")} /></label>
+              <button class="primary" @click=${() => this._submitSchedItem(p.key)}>${this.t("add")}</button>
+              <button class="link" @click=${() => (this._schedForm = undefined)}>${this.t("cancel")}</button>
             </div>`
           : nothing}
         <div class="ps-list">
-          ${items.length === 0 ? html`<div class="muted small">Nog geen items voor deze fase.</div>` : nothing}
+          ${items.length === 0 ? html`<div class="muted small">${this.t("noPhaseItems")}</div>` : nothing}
           ${items.map((it) =>
             this._editSched === it.id
               ? html`<div class="ps-item editing">
                   <input id="se-time" type="time" .value=${it.time} />
                   <input id="se-label" type="text" .value=${it.label} />
                   <select id="se-type">${this._typeOptions(s, it.type)}</select>
-                  <input id="se-notes" type="text" .value=${it.notes} placeholder="notitie" />
-                  <button class="primary" @click=${() => this._submitSchedEdit(it)}>Opslaan</button>
-                  <button class="link" @click=${() => (this._editSched = undefined)}>Annuleer</button>
+                  <input id="se-notes" type="text" .value=${it.notes} placeholder=${this.t("note")} />
+                  <button class="primary" @click=${() => this._submitSchedEdit(it)}>${this.t("save")}</button>
+                  <button class="link" @click=${() => (this._editSched = undefined)}>${this.t("cancel")}</button>
                 </div>`
               : html`<div class="ps-item">
                   <span class="ps-time">${it.time}</span>
@@ -997,8 +1117,8 @@ export class PuppyTrackerPanel extends LitElement {
                     <span>${it.label}</span>
                     ${it.notes ? html`<span class="ps-note">${it.notes}</span>` : nothing}
                   </span>
-                  <button class="icon-link" title="Bewerken" @click=${() => (this._editSched = it.id)}><ha-icon icon="mdi:pencil"></ha-icon></button>
-                  <button class="icon-link danger" title="Verwijderen" @click=${() => this._removeSchedItem(it.id)}><ha-icon icon="mdi:delete-outline"></ha-icon></button>
+                  <button class="icon-link" title=${this.t("edit")} @click=${() => (this._editSched = it.id)}><ha-icon icon="mdi:pencil"></ha-icon></button>
+                  <button class="icon-link danger" title=${this.t("remove")} @click=${() => this._removeSchedItem(it.id)}><ha-icon icon="mdi:delete-outline"></ha-icon></button>
                 </div>`,
           )}
         </div>
@@ -1016,10 +1136,10 @@ export class PuppyTrackerPanel extends LitElement {
 
   private _stepDelete(st: Step) {
     return this._confirm?.kind === "step" && this._confirm.id === st.id
-      ? html`<span class="confirm">Verwijderen?
-          <button class="link danger" @click=${() => this._removeStep(st.id)}>Ja</button>
-          <button class="link" @click=${() => (this._confirm = undefined)}>Nee</button></span>`
-      : html`<button class="link danger" title="Verwijderen" @click=${() => (this._confirm = { kind: "step", id: st.id })}>×</button>`;
+      ? html`<span class="confirm">${this.t("removeQ")}
+          <button class="link danger" @click=${() => this._removeStep(st.id)}>${this.t("yes")}</button>
+          <button class="link" @click=${() => (this._confirm = undefined)}>${this.t("no")}</button></span>`
+      : html`<button class="link danger" title=${this.t("remove")} @click=${() => (this._confirm = { kind: "step", id: st.id })}>×</button>`;
   }
 
   private async _moveStepWeek(step: Step, deltaWeeks: number): Promise<void> {
@@ -1040,7 +1160,7 @@ export class PuppyTrackerPanel extends LitElement {
 
   private _renderSocialization(s: State) {
     const proto = s.protocols.find((p) => p.seed_key === "socialization");
-    if (!proto) return html`<section><p class="muted">Geen socialisatieprogramma. Stel een thuiskomstdatum in.</p></section>`;
+    if (!proto) return html`<section><p class="muted">${this.t("noSocProgram")}</p></section>`;
 
     const WEEKS = 5; // 7-12 weken = 5 weken vanaf thuiskomst
     const currentWeek = this._currentSocWeek(proto);
@@ -1053,7 +1173,7 @@ export class PuppyTrackerPanel extends LitElement {
     return html`
       <section>
         <div class="sec-head">
-          <h2>Socialisatie <small class="muted">(7-12 weken · weekchecklist)</small></h2>
+          <h2>${this.t("socialization")} <small class="muted">${this.t("socializationSub")}</small></h2>
         </div>
         <div class="legend">
           ${Object.entries(s.socialization_categories).map(
@@ -1076,26 +1196,26 @@ export class PuppyTrackerPanel extends LitElement {
       <div class="week-card ${isCurrent ? "current" : ""} ${isPast ? "past" : ""}">
         <div class="week-head">
           <div>
-            <strong>Week ${i + 1}</strong>
-            <small class="muted">${7 + i}-${8 + i} wk</small>
-            ${isCurrent ? html`<span class="badge">Nu</span>` : nothing}
-            ${isPast ? html`<span class="past-tag">voorbij</span>` : nothing}
+            <strong>${this.t("deferWeek")} ${i + 1}</strong>
+            <small class="muted">${7 + i}-${8 + i} ${this.t("wk")}</small>
+            ${isCurrent ? html`<span class="badge">${this.t("now")}</span>` : nothing}
+            ${isPast ? html`<span class="past-tag">${this.t("past")}</span>` : nothing}
           </div>
           <span class="week-progress">${done}/${items.length}</span>
         </div>
         <div class="week-items">
-          ${ordered.length === 0 ? html`<div class="muted small">Geen activiteiten deze week.</div>` : nothing}
+          ${ordered.length === 0 ? html`<div class="muted small">${this.t("noActivities")}</div>` : nothing}
           ${ordered.map((st) => this._renderSocItem(s, proto, st, i, weeks))}
         </div>
         ${this._socAddWeek === i
           ? html`<div class="inline-form">
-              <label class="fld grow">Activiteit<input id="sa-title" type="text" placeholder="bv. Trein horen" /></label>
-              <label class="fld">Dag<select id="sa-day">${this._weekDayOptions(proto, i, i * 7)}</select></label>
-              <label class="fld">Categorie<select id="sa-cat">${this._socCatOptions(s, "omgeving")}</select></label>
-              <button class="primary" @click=${() => this._submitSocAdd(proto, i)}>Toevoegen</button>
-              <button class="link" @click=${() => (this._socAddWeek = undefined)}>Annuleer</button>
+              <label class="fld grow">${this.t("activity")}<input id="sa-title" type="text" placeholder=${this.t("activityPh")} /></label>
+              <label class="fld">${this.t("day")}<select id="sa-day">${this._weekDayOptions(proto, i, i * 7)}</select></label>
+              <label class="fld">${this.t("category")}<select id="sa-cat">${this._socCatOptions(s, "omgeving")}</select></label>
+              <button class="primary" @click=${() => this._submitSocAdd(proto, i)}>${this.t("add")}</button>
+              <button class="link" @click=${() => (this._socAddWeek = undefined)}>${this.t("cancel")}</button>
             </div>`
-          : html`<button class="link add-week" @click=${() => (this._socAddWeek = i)}>+ activiteit</button>`}
+          : html`<button class="link add-week" @click=${() => (this._socAddWeek = i)}>${this.t("addActivity")}</button>`}
       </div>
     `;
   }
@@ -1105,21 +1225,21 @@ export class PuppyTrackerPanel extends LitElement {
     if (this._editStep === st.id) {
       return html`
         <div class="soc-item editing">
-          <input id="es-title" type="text" .value=${st.title} placeholder="activiteit" />
-          <input id="es-notes" type="text" .value=${st.notes} placeholder="notitie (optioneel)" />
+          <input id="es-title" type="text" .value=${st.title} placeholder=${this.t("activity")} />
+          <input id="es-notes" type="text" .value=${st.notes} placeholder=${this.t("noteOptional")} />
           <input id="es-date" type="hidden" .value=${st.effective_date ?? ""} />
-          <label class="fld">Dag<select id="es-day">${this._weekDayOptions(proto, Math.floor(st.day_offset / 7), st.day_offset)}</select></label>
-          <label class="fld">Categorie<select id="es-cat">${this._socCatOptions(s, st.category)}</select></label>
+          <label class="fld">${this.t("day")}<select id="es-day">${this._weekDayOptions(proto, Math.floor(st.day_offset / 7), st.day_offset)}</select></label>
+          <label class="fld">${this.t("category")}<select id="es-cat">${this._socCatOptions(s, st.category)}</select></label>
           <div class="soc-edit-row">
             <span class="wk-move">
-              Week:
-              <button class="iconbtn" title="Vorige week" ?disabled=${weekIndex === 0} @click=${() => this._moveStepWeek(st, -1)}>←</button>
-              <button class="iconbtn" title="Volgende week" ?disabled=${weekIndex === weeks - 1} @click=${() => this._moveStepWeek(st, 1)}>→</button>
+              ${this.t("deferWeek")}:
+              <button class="iconbtn" title=${this.t("prevWeek")} ?disabled=${weekIndex === 0} @click=${() => this._moveStepWeek(st, -1)}>←</button>
+              <button class="iconbtn" title=${this.t("nextWeek")} ?disabled=${weekIndex === weeks - 1} @click=${() => this._moveStepWeek(st, 1)}>→</button>
             </span>
             <span class="spacer"></span>
-            <button class="link danger" @click=${() => this._removeStep(st.id)}>Verwijderen</button>
-            <button class="primary" @click=${() => this._submitStepEdit(st, proto)}>Opslaan</button>
-            <button class="link" @click=${() => (this._editStep = undefined)}>Annuleer</button>
+            <button class="link danger" @click=${() => this._removeStep(st.id)}>${this.t("remove")}</button>
+            <button class="primary" @click=${() => this._submitStepEdit(st, proto)}>${this.t("save")}</button>
+            <button class="link" @click=${() => (this._editStep = undefined)}>${this.t("cancel")}</button>
           </div>
         </div>
       `;
@@ -1132,7 +1252,7 @@ export class PuppyTrackerPanel extends LitElement {
           <span class="soc-item-title">${st.title}</span>
           ${st.notes ? html`<span class="soc-item-note">${st.notes}</span>` : nothing}
         </span>
-        <button class="icon-link edit-btn" title="Bewerken" @click=${() => (this._editStep = st.id)}><ha-icon icon="mdi:pencil"></ha-icon></button>
+        <button class="icon-link edit-btn" title=${this.t("edit")} @click=${() => (this._editStep = st.id)}><ha-icon icon="mdi:pencil"></ha-icon></button>
       </div>
     `;
   }
@@ -1144,28 +1264,28 @@ export class PuppyTrackerPanel extends LitElement {
     return html`
       <section>
         <div class="sec-head">
-          <h2>Schema's & taken</h2>
+          <h2>${this.t("schedulesTasks")}</h2>
           <span>
-            <button class="ghost" @click=${() => { this._taskForm = !this._taskForm; this._protoForm = false; }}>+ Taak</button>
-            <button class="ghost" @click=${() => { this._protoForm = !this._protoForm; this._taskForm = false; }}>+ Schema</button>
+            <button class="ghost" @click=${() => { this._taskForm = !this._taskForm; this._protoForm = false; }}>${this.t("addTask")}</button>
+            <button class="ghost" @click=${() => { this._protoForm = !this._protoForm; this._taskForm = false; }}>${this.t("addSchema")}</button>
           </span>
         </div>
 
         ${this._taskForm
           ? html`<div class="inline-form">
-              <input id="nt-title" type="text" placeholder="Titel (bv. Dierenarts)" />
+              <input id="nt-title" type="text" placeholder=${this.t("taskTitlePh")} />
               <input id="nt-date" type="date" .value=${s.today} />
-              <button class="primary" @click=${this._submitTask}>Toevoegen</button>
-              <button class="link" @click=${() => (this._taskForm = false)}>Annuleer</button>
+              <button class="primary" @click=${this._submitTask}>${this.t("add")}</button>
+              <button class="link" @click=${() => (this._taskForm = false)}>${this.t("cancel")}</button>
             </div>`
           : nothing}
         ${this._protoForm
           ? html`<div class="inline-form">
-              <label class="fld grow">Naam<input id="np-name" type="text" placeholder="bv. Bench verplaatsen" /></label>
-              <label class="fld">Startdatum<input id="np-start" type="date" .value=${s.today} /></label>
-              <label class="fld grow">Omschrijving (optioneel)<input id="np-notes" type="text" placeholder="Waar gaat dit schema over?" /></label>
-              <button class="primary" @click=${this._submitProtocol}>Toevoegen</button>
-              <button class="link" @click=${() => (this._protoForm = false)}>Annuleer</button>
+              <label class="fld grow">${this.t("name")}<input id="np-name" type="text" placeholder=${this.t("schemaNamePh")} /></label>
+              <label class="fld">${this.t("startDate")}<input id="np-start" type="date" .value=${s.today} /></label>
+              <label class="fld grow">${this.t("descriptionOptional")}<input id="np-notes" type="text" placeholder=${this.t("schemaAboutPh")} /></label>
+              <button class="primary" @click=${this._submitProtocol}>${this.t("add")}</button>
+              <button class="link" @click=${() => (this._protoForm = false)}>${this.t("cancel")}</button>
             </div>`
           : nothing}
 
@@ -1179,9 +1299,9 @@ export class PuppyTrackerPanel extends LitElement {
                       ${t.date ? html`<span class="task-date">${this._fmt(t.date)}</span>` : nothing}
                     </span>
                     ${this._confirm?.kind === "task" && this._confirm.id === t.id
-                      ? html`<span class="confirm">Zeker?
-                          <button class="link danger" @click=${() => this._removeTask(t.id)}>Ja</button>
-                          <button class="link" @click=${() => (this._confirm = undefined)}>Nee</button></span>`
+                      ? html`<span class="confirm">${this.t("sureQ")}
+                          <button class="link danger" @click=${() => this._removeTask(t.id)}>${this.t("yes")}</button>
+                          <button class="link" @click=${() => (this._confirm = undefined)}>${this.t("no")}</button></span>`
                       : html`<button class="link danger" @click=${() => (this._confirm = { kind: "task", id: t.id })}>×</button>`}
                   </div>
                 `,
@@ -1194,33 +1314,33 @@ export class PuppyTrackerPanel extends LitElement {
             <div class="proto">
               ${this._editProto === p.id
                 ? html`<div class="inline-form">
-                    <label class="fld grow">Naam<input id="ep-name" type="text" .value=${p.name} /></label>
-                    <label class="fld">Startdatum<input id="ep-start" type="date" .value=${p.start_date ?? ""} /></label>
-                    <label class="fld grow">Omschrijving<input id="ep-notes" type="text" .value=${p.notes} placeholder="Waar gaat dit schema over?" /></label>
-                    <button class="primary" @click=${() => this._submitProtoEdit(p)}>Opslaan</button>
-                    <button class="link" @click=${() => (this._editProto = undefined)}>Annuleer</button>
+                    <label class="fld grow">${this.t("name")}<input id="ep-name" type="text" .value=${p.name} /></label>
+                    <label class="fld">${this.t("startDate")}<input id="ep-start" type="date" .value=${p.start_date ?? ""} /></label>
+                    <label class="fld grow">${this.t("description")}<input id="ep-notes" type="text" .value=${p.notes} placeholder=${this.t("schemaAboutPh")} /></label>
+                    <button class="primary" @click=${() => this._submitProtoEdit(p)}>${this.t("save")}</button>
+                    <button class="link" @click=${() => (this._editProto = undefined)}>${this.t("cancel")}</button>
                   </div>`
                 : html`
                     <div class="proto-head">
                       <strong>${p.name}</strong>
                       <span>
-                        <button class="icon-link" title="Bewerken" @click=${() => (this._editProto = p.id)}><ha-icon icon="mdi:pencil"></ha-icon></button>
-                        <button class="link" @click=${() => { this._stepForm = this._stepForm === p.id ? undefined : p.id; }}>+ Stap</button>
+                        <button class="icon-link" title=${this.t("edit")} @click=${() => (this._editProto = p.id)}><ha-icon icon="mdi:pencil"></ha-icon></button>
+                        <button class="link" @click=${() => { this._stepForm = this._stepForm === p.id ? undefined : p.id; }}>${this.t("addStep")}</button>
                         ${this._confirm?.kind === "protocol" && this._confirm.id === p.id
-                          ? html`<span class="confirm">Zeker?
-                              <button class="link danger" @click=${() => this._removeProtocol(p.id)}>Ja</button>
-                              <button class="link" @click=${() => (this._confirm = undefined)}>Nee</button></span>`
-                          : html`<button class="link danger" @click=${() => (this._confirm = { kind: "protocol", id: p.id })}>Verwijderen</button>`}
+                          ? html`<span class="confirm">${this.t("sureQ")}
+                              <button class="link danger" @click=${() => this._removeProtocol(p.id)}>${this.t("yes")}</button>
+                              <button class="link" @click=${() => (this._confirm = undefined)}>${this.t("no")}</button></span>`
+                          : html`<button class="link danger" @click=${() => (this._confirm = { kind: "protocol", id: p.id })}>${this.t("remove")}</button>`}
                       </span>
                     </div>
                     ${p.notes ? html`<div class="proto-note">${p.notes}</div>` : nothing}
                   `}
               ${this._stepForm === p.id
                 ? html`<div class="inline-form">
-                    <label class="fld grow">Titel<input id="ns-title" type="text" placeholder="Titel van de stap" /></label>
-                    <label class="fld">Datum<input id="ns-date" type="date" .value=${this._nextStepDate(p, s.today)} /></label>
-                    <button class="primary" @click=${() => this._submitStep(p)}>Toevoegen</button>
-                    <button class="link" @click=${() => (this._stepForm = undefined)}>Annuleer</button>
+                    <label class="fld grow">${this.t("title")}<input id="ns-title" type="text" placeholder=${this.t("stepTitlePh")} /></label>
+                    <label class="fld">${this.t("date")}<input id="ns-date" type="date" .value=${this._nextStepDate(p, s.today)} /></label>
+                    <button class="primary" @click=${() => this._submitStep(p)}>${this.t("add")}</button>
+                    <button class="link" @click=${() => (this._stepForm = undefined)}>${this.t("cancel")}</button>
                   </div>`
                 : nothing}
               <div class="steps">
@@ -1228,18 +1348,18 @@ export class PuppyTrackerPanel extends LitElement {
                   this._editStep === st.id
                     ? html`
                         <div class="step editing">
-                          <input id="es-title" type="text" .value=${st.title} placeholder="titel" />
+                          <input id="es-title" type="text" .value=${st.title} placeholder=${this.t("title")} />
                           <input id="es-date" type="date" .value=${st.effective_date ?? ""} />
-                          <input id="es-notes" type="text" .value=${st.notes} placeholder="notitie (optioneel)" />
-                          <button class="primary" @click=${() => this._submitStepEdit(st, p)}>Opslaan</button>
-                          <button class="link" @click=${() => (this._editStep = undefined)}>Annuleer</button>
+                          <input id="es-notes" type="text" .value=${st.notes} placeholder=${this.t("noteOptional")} />
+                          <button class="primary" @click=${() => this._submitStepEdit(st, p)}>${this.t("save")}</button>
+                          <button class="link" @click=${() => (this._editStep = undefined)}>${this.t("cancel")}</button>
                         </div>
                       `
                     : html`
                         <div class="step ${this._isToday(st.effective_date) ? "today" : ""} ${st.done_at ? "done" : ""}">
                           <span class="step-date">${this._fmt(st.effective_date)}</span>
                           <span class="step-title">${st.title}</span>
-                          <button class="icon-link" title="Bewerken" @click=${() => (this._editStep = st.id)}><ha-icon icon="mdi:pencil"></ha-icon></button>
+                          <button class="icon-link" title=${this.t("edit")} @click=${() => (this._editStep = st.id)}><ha-icon icon="mdi:pencil"></ha-icon></button>
                           ${this._deferControls(st)}
                           ${this._stepDelete(st)}
                         </div>
@@ -1259,26 +1379,40 @@ export class PuppyTrackerPanel extends LitElement {
     const p = s.puppy;
     return html`
       <section>
-        <h2>Configuratie</h2>
+        <h2>${this.t("config")}</h2>
         <div class="settings">
+          <label>${this.t("language")}
+            <select @change=${(e: Event) => this._setLanguage((e.target as HTMLSelectElement).value as Lang)}>
+              <option value="nl" ?selected=${this._lang === "nl"}>Nederlands</option>
+              <option value="en" ?selected=${this._lang === "en"}>English</option>
+            </select>
+          </label>
           <div class="photo-field">
             <div class="photo-preview">
-              ${p?.photo_url ? html`<img src=${p.photo_url} alt="foto van ${p.name}" />` : html`<ha-icon icon="mdi:dog"></ha-icon>`}
+              ${p?.photo_url ? html`<img src=${p.photo_url} alt=${p.name} />` : html`<ha-icon icon="mdi:dog"></ha-icon>`}
             </div>
             <div class="photo-actions">
               <label class="filebtn">
-                Foto kiezen…
+                ${this.t("choosePhoto")}
                 <input type="file" accept="image/*" @change=${this._onPhotoFile} hidden />
               </label>
-              ${p?.photo_url ? html`<button class="link danger" @click=${() => this._savePhoto("")}>Verwijderen</button>` : nothing}
-              <div class="muted small">Wordt automatisch verkleind en opgeslagen.</div>
+              ${p?.photo_url ? html`<button class="link danger" @click=${() => this._savePhoto("")}>${this.t("remove")}</button>` : nothing}
+              <div class="muted small">${this.t("photoHint")}</div>
             </div>
           </div>
-          <label>Naam<input type="text" id="name" .value=${p?.name ?? ""} /></label>
-          <label>Geboortedatum<input type="date" id="birth" .value=${p?.birth_date ?? ""} /></label>
-          <label>Thuiskomstdatum<input type="date" id="home" .value=${p?.homecoming_date ?? ""} /></label>
-          <button class="primary" @click=${this._saveConfig}>Opslaan</button>
-          <p class="muted">Bij het wijzigen van de thuiskomstdatum schuift het socialisatie- en benchschema automatisch mee.</p>
+          <label>${this.t("name")}<input type="text" id="name" .value=${p?.name ?? ""} /></label>
+          <label>${this.t("birthDate")}<input type="date" id="birth" .value=${p?.birth_date ?? ""} /></label>
+          <label>${this.t("homecomingDate")}<input type="date" id="home" .value=${p?.homecoming_date ?? ""} /></label>
+          <button class="primary" @click=${this._saveConfig}>${this.t("save")}</button>
+          <p class="muted">${this.t("homecomingHint")}</p>
+          <div class="reseed">
+            ${this._reseedConfirm
+              ? html`<span class="confirm">${this.t("reloadConfirm")}
+                  <button class="link danger" @click=${this._reloadDefaults}>${this.t("yes")}</button>
+                  <button class="link" @click=${() => (this._reseedConfirm = false)}>${this.t("no")}</button></span>`
+              : html`<button class="ghost" @click=${() => (this._reseedConfirm = true)}>${this.t("reloadDefaults")}</button>`}
+            <div class="muted small">${this.t("reloadDefaultsHint")}</div>
+          </div>
         </div>
       </section>
       ${this._renderPhases(s)}
@@ -1509,7 +1643,8 @@ export class PuppyTrackerPanel extends LitElement {
     /* Config */
     .settings { display: flex; flex-direction: column; gap: 10px; max-width: 360px; }
     .settings label { display: flex; flex-direction: column; font-size: .85rem; gap: 4px; }
-    .settings input { padding: 8px; border-radius: 8px; border: 1px solid var(--divider-color, #ccc); background: var(--card-background-color); color: inherit; }
+    .settings input, .settings select { padding: 8px; border-radius: 8px; border: 1px solid var(--divider-color, #ccc); background: var(--card-background-color); color: inherit; font: inherit; }
+    .reseed { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
     .photo-field { display: flex; gap: 14px; align-items: center; }
     .photo-preview { width: 96px; height: 96px; border-radius: 12px; overflow: hidden; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, var(--primary-color), color-mix(in srgb, var(--primary-color) 40%, #000)); color: #fff; }
     .photo-preview img { width: 100%; height: 100%; object-fit: cover; }

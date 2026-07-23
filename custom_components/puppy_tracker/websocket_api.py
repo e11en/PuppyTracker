@@ -13,10 +13,10 @@ from homeassistant.core import HomeAssistant
 import homeassistant.util.dt as dt_util
 
 from . import content
-from .const import DOMAIN
+from .const import DEFAULT_LANGUAGE, DOMAIN, SUPPORTED_LANGUAGES
 from .coordinator import PuppyCoordinator
 from .db import PuppyTrackerDB, queries
-from .seeder import async_seed_defaults
+from .seeder import async_reseed_defaults, async_seed_defaults
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,6 +34,8 @@ def async_register_commands(hass: HomeAssistant) -> None:
         ws_update_schedule_item,
         ws_remove_schedule_item,
         ws_update_phase,
+        ws_set_language,
+        ws_reseed_defaults,
         ws_add_task,
         ws_update_task,
         ws_remove_task,
@@ -74,9 +76,11 @@ async def _full_state(db: PuppyTrackerDB, coordinator: PuppyCoordinator) -> dict
             "interval_hours": next_pee["interval_hours"],
         }
     today = _today()
+    lang = (await queries.get_app_state(db.conn, "language")) or DEFAULT_LANGUAGE
     return {
         "puppy": await queries.get_puppy(db.conn),
         "today": today,
+        "language": lang,
         "age_weeks": data.get("age_weeks"),
         "age_days": data.get("age_days"),
         "age_months": data.get("age_months"),
@@ -86,9 +90,9 @@ async def _full_state(db: PuppyTrackerDB, coordinator: PuppyCoordinator) -> dict
         "next_pee": next_pee_out,
         "phases": await queries.get_phases(db.conn),
         "schedules": await queries.get_all_schedules(db.conn),
-        "schedule_types": content.SCHEDULE_TYPES,
+        "schedule_types": content.schedule_types(lang),
         "night": {"start": content.NIGHT_START, "end": content.NIGHT_END},
-        "socialization_categories": content.SOCIALIZATION_CATEGORIES,
+        "socialization_categories": content.categories(lang),
         "daily_checks": await queries.get_checks_for_date(db.conn, today),
         "protocols": await queries.get_protocols_with_steps(db.conn),
         "tasks": await queries.get_all_tasks(db.conn),
@@ -309,6 +313,48 @@ async def ws_update_phase(hass, connection, msg):
         if k in msg
     }
     await queries.update_phase(db.conn, msg["key"], **fields)
+    await coordinator.async_request_refresh()
+    connection.send_result(msg["id"], await _full_state(db, coordinator))
+
+
+# --- Language ------------------------------------------------------------
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "puppy_tracker/set_language",
+        vol.Required("language"): str,
+    }
+)
+@websocket_api.async_response
+async def ws_set_language(hass, connection, msg):
+    e = _entry(hass)
+    if not e:
+        connection.send_result(msg["id"], {})
+        return
+    db, coordinator = e
+    lang = msg["language"] if msg["language"] in SUPPORTED_LANGUAGES else DEFAULT_LANGUAGE
+    await queries.set_app_state(db.conn, "language", lang)
+    connection.send_result(msg["id"], await _full_state(db, coordinator))
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "puppy_tracker/reseed_defaults",
+        vol.Optional("language"): str,
+    }
+)
+@websocket_api.async_response
+async def ws_reseed_defaults(hass, connection, msg):
+    e = _entry(hass)
+    if not e:
+        connection.send_result(msg["id"], {})
+        return
+    db, coordinator = e
+    current = (await queries.get_app_state(db.conn, "language")) or DEFAULT_LANGUAGE
+    lang = msg.get("language", current)
+    if lang not in SUPPORTED_LANGUAGES:
+        lang = DEFAULT_LANGUAGE
+    await async_reseed_defaults(db.conn, lang)
     await coordinator.async_request_refresh()
     connection.send_result(msg["id"], await _full_state(db, coordinator))
 

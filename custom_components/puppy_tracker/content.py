@@ -1,131 +1,219 @@
 """Static content: category colors, the 24h schedule template and the
-socialization program template.
+socialization program template — bilingual (nl/en).
 
 CONTENT NOTE: this is a proposed template based on the owner's specification
 (paarden 3x, schapen 2x, herders van de ouders 3x, bouwmarkt 2x, puppycursus 2x,
 6 rustdagen) plus general socialization guidance. It is editable in the UI once
 seeded as a protocol, so treat the day-by-day ordering as a starting point.
+English is provided so a fresh install can seed defaults in either language.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
+
+def _L(nl: str, en: str) -> dict[str, str]:
+    return {"nl": nl, "en": en}
+
+
+def _t(value: Any, lang: str) -> Any:
+    """Resolve a bilingual dict to the given language (fallback nl)."""
+    if isinstance(value, dict) and "nl" in value and "en" in value:
+        return value.get(lang) or value["nl"]
+    return value
+
+
 # ---------------------------------------------------------------------------
-# Categories (used by socialization program and schedule item types)
+# Categories (socialization) and schedule item types
 # ---------------------------------------------------------------------------
 
-SOCIALIZATION_CATEGORIES: dict[str, dict[str, str]] = {
-    "dieren": {"label": "Dieren", "color": "#c8863b", "icon": "mdi:paw"},
-    "mensen": {"label": "Mensen", "color": "#3b82c8", "icon": "mdi:account-group"},
-    "omgeving": {"label": "Omgeving", "color": "#4c9a5a", "icon": "mdi:home-city"},
-    "hanteren": {"label": "Hanteren", "color": "#a05ac0", "icon": "mdi:hand-back-right"},
-    "rust": {"label": "Rust", "color": "#8a8f98", "icon": "mdi:sleep"},
+_SOCIALIZATION_CATEGORIES: dict[str, dict[str, Any]] = {
+    "dieren": {"label": _L("Dieren", "Animals"), "color": "#c8863b", "icon": "mdi:paw"},
+    "mensen": {"label": _L("Mensen", "People"), "color": "#3b82c8", "icon": "mdi:account-group"},
+    "omgeving": {"label": _L("Omgeving", "Environment"), "color": "#4c9a5a", "icon": "mdi:home-city"},
+    "hanteren": {"label": _L("Hanteren", "Handling"), "color": "#a05ac0", "icon": "mdi:hand-back-right"},
+    "rust": {"label": _L("Rust", "Rest"), "color": "#8a8f98", "icon": "mdi:sleep"},
 }
 
-SCHEDULE_TYPES: dict[str, dict[str, str]] = {
-    "plassen": {"label": "Plassen", "color": "#e0b23b", "icon": "mdi:water"},
-    "eten": {"label": "Eten", "color": "#4c9a5a", "icon": "mdi:bowl-mix"},
-    "rust": {"label": "Rust", "color": "#6b7280", "icon": "mdi:sleep"},
-    "beweging": {"label": "Beweging", "color": "#3b82c8", "icon": "mdi:walk"},
-    "verzorging": {"label": "Verzorging", "color": "#a05ac0", "icon": "mdi:content-cut"},
+_SCHEDULE_TYPES: dict[str, dict[str, Any]] = {
+    "plassen": {"label": _L("Plassen", "Potty"), "color": "#e0b23b", "icon": "mdi:water"},
+    "eten": {"label": _L("Eten", "Food"), "color": "#4c9a5a", "icon": "mdi:bowl-mix"},
+    "rust": {"label": _L("Rust", "Rest"), "color": "#6b7280", "icon": "mdi:sleep"},
+    "beweging": {"label": _L("Beweging", "Exercise"), "color": "#3b82c8", "icon": "mdi:walk"},
+    "verzorging": {"label": _L("Verzorging", "Grooming"), "color": "#a05ac0", "icon": "mdi:content-cut"},
 }
 
-# ---------------------------------------------------------------------------
-# 24-hour schedule template (07:00 -> 06:00). Night = 22:00-06:00 (rendered dark).
-# Represents the phase-1 rhythm (~3-hourly pees); scales looser as the pup grows.
-# ---------------------------------------------------------------------------
 
-DAILY_SCHEDULE: list[dict[str, Any]] = [
-    {"key": "d0700_plas", "time": "07:00", "type": "plassen", "label": "Ochtendplas",
-     "note": "Direct uit de bench naar buiten. Beloon buiten plassen rustig."},
-    {"key": "d0715_eten", "time": "07:15", "type": "eten", "label": "Ontbijt",
-     "note": "Maaltijd 1 van de dag."},
-    {"key": "d0745_plas", "time": "07:45", "type": "plassen", "label": "Plas na eten",
-     "note": "Kort na de maaltijd nog even naar buiten."},
-    {"key": "d0800_beweging", "time": "08:00", "type": "beweging", "label": "Kort rondje / spel",
-     "note": "5-minutenregel: leeftijd in mnd x 5 min, aan de ondergrens."},
-    {"key": "d0830_rust", "time": "08:30", "type": "rust", "label": "Slaapje",
-     "note": "Rust is leren. Laat de pup ongestoord slapen."},
-    {"key": "d1000_plas", "time": "10:00", "type": "plassen", "label": "Plaspauze",
-     "note": "Na het slaapje meteen naar buiten."},
-    {"key": "d1030_verzorging", "time": "10:30", "type": "verzorging", "label": "Borstelen",
-     "note": "Dagelijks kort borstelen als vast, positief momentje."},
-    {"key": "d1200_eten", "time": "12:00", "type": "eten", "label": "Lunch",
-     "note": "Maaltijd 2 van de dag."},
-    {"key": "d1230_plas", "time": "12:30", "type": "plassen", "label": "Plas na eten",
-     "note": ""},
-    {"key": "d1300_rust", "time": "13:00", "type": "rust", "label": "Middagslaap",
-     "note": ""},
-    {"key": "d1500_plas", "time": "15:00", "type": "plassen", "label": "Plaspauze",
-     "note": ""},
-    {"key": "d1530_beweging", "time": "15:30", "type": "beweging", "label": "Socialisatie-uitje",
-     "note": "Zie het socialisatieprogramma voor de activiteit van vandaag."},
-    {"key": "d1700_eten", "time": "17:00", "type": "eten", "label": "Avondeten",
-     "note": "Maaltijd 3 van de dag."},
-    {"key": "d1730_plas", "time": "17:30", "type": "plassen", "label": "Plas na eten",
-     "note": ""},
-    {"key": "d1900_rust", "time": "19:00", "type": "rust", "label": "Avondrust",
-     "note": "Rustig samen, geen wilde spelletjes meer."},
-    {"key": "d2100_eten", "time": "21:00", "type": "eten", "label": "Kleine laatste hap",
-     "note": "Optioneel maaltijd 4; bouw af naar 3 als de pup dat aankan."},
-    {"key": "d2145_plas", "time": "21:45", "type": "plassen", "label": "Laatste plas",
-     "note": "Laatste ronde voor de nacht."},
-    {"key": "d2200_rust", "time": "22:00", "type": "rust", "label": "Nacht: bench",
-     "note": "Bench naast bed; geen licht, geen spel, geen praten."},
-    {"key": "d0130_plas", "time": "01:30", "type": "plassen", "label": "Nachtronde 1",
-     "note": "Alleen uitlaten en terug. Geen licht, geen spel, geen praten."},
-    {"key": "d0430_plas", "time": "04:30", "type": "plassen", "label": "Nachtronde 2",
-     "note": "Schrap een ronde zodra de pup 's nachts droog blijft."},
-]
+def categories(lang: str) -> dict[str, dict[str, str]]:
+    return {
+        k: {"label": _t(v["label"], lang), "color": v["color"], "icon": v["icon"]}
+        for k, v in _SOCIALIZATION_CATEGORIES.items()
+    }
+
+
+def schedule_types(lang: str) -> dict[str, dict[str, str]]:
+    return {
+        k: {"label": _t(v["label"], lang), "color": v["color"], "icon": v["icon"]}
+        for k, v in _SCHEDULE_TYPES.items()
+    }
+
 
 NIGHT_START = "22:00"
 NIGHT_END = "06:00"
 
 # ---------------------------------------------------------------------------
-# Socialization program: 35 days from homecoming (day 0 = homecoming).
-# One activity per day; 6 rest days; phased build for the milestone exposures.
-# Rendered as a milestone protocol (permanent checkmarks).
+# 24-hour schedule template (07:00 -> 06:00). Phase-1 rhythm (~3-hourly pees).
 # ---------------------------------------------------------------------------
 
-def _s(day: int, category: str, activity: str, note: str = "", rest: bool = False) -> dict[str, Any]:
-    return {"day": day, "category": category, "activity": activity, "note": note, "rest": rest}
-
-
-SOCIALIZATION_PROGRAM: list[dict[str, Any]] = [
-    _s(0, "rust", "Thuiskomst: rustig laten wennen", "Alleen huis en tuin. Geen bezoek, veel rust.", rest=True),
-    _s(1, "omgeving", "Huis verkennen: geluiden binnen", "Stofzuiger van afstand aan, beloon rustig gedrag."),
-    _s(2, "hanteren", "Pootjes, oren en bek kort aanraken", "Kort, positief, met een beloning. Stop voor de pup het spannend vindt."),
-    _s(3, "mensen", "1-2 rustige bezoekers thuis", "Laat de pup zelf benaderen; niet overladen."),
-    _s(4, "omgeving", "Auto: kort stukje meerijden", "Eerst stilstaand wennen, dan een kort ritje."),
-    _s(5, "rust", "Rustdag", "Verwerken. Alleen bekende routines.", rest=True),
-    _s(6, "dieren", "Paarden op afstand bekijken (1/3)", "Grote afstand, rustig kijken. Stoppen bij spanning."),
-    _s(7, "mensen", "Wandelaars/fietsers van afstand", "Op een bankje kijken naar voorbijgangers."),
-    _s(8, "omgeving", "Verschillende ondergronden", "Gras, grind, tegels, metalen rooster: laat zelf kiezen."),
-    _s(9, "hanteren", "Wennen aan halsband/tuigje", "Kort omdoen, afleiden met spel, weer af."),
-    _s(10, "dieren", "Schapen op afstand (1/2)", "Ruime afstand van het hek; rustig kijken en belonen."),
-    _s(11, "rust", "Rustdag", "", rest=True),
-    _s(12, "dieren", "Paarden dichterbij (2/3)", "Iets kortere afstand dan de vorige keer, als het rustig ging."),
-    _s(13, "mensen", "Kinderen op afstand horen/zien", "Speelplaats van afstand; nooit door kinderen laten bestormen."),
-    _s(14, "omgeving", "Bouwmarkt bezoek (1/2)", "Draag de pup naar binnen (1 enting): karren, geluiden, mensen."),
-    _s(15, "hanteren", "Nagels bekijken + voetbadje simuleren", "Aanraken en belonen; nog niet per se knippen."),
-    _s(16, "dieren", "Herders van opa en oma (1/3)", "Rustige, gevaccineerde honden. Korte, positieve kennismaking."),
-    _s(17, "rust", "Rustdag", "", rest=True),
-    _s(18, "omgeving", "Dorp/straat: verkeer van afstand", "Kort, op afstand van drukke weg. Beloon rust."),
-    _s(19, "dieren", "Schapen dichterbij (2/2)", "Kortere afstand als het eerder goed ging."),
-    _s(20, "mensen", "Mensen met hoed/paraplu/rollator", "Vreemde silhouetten positief associeren."),
-    _s(21, "dieren", "Herders van opa en oma (2/3)", "Iets langere, rustige interactie."),
-    _s(22, "rust", "Rustdag", "", rest=True),
-    _s(23, "omgeving", "Bouwmarkt bezoek (2/2)", "Herhaling; kijk of de pup rustiger is dan de eerste keer."),
-    _s(24, "hanteren", "Dierenarts-handling oefenen", "Op tafel tillen, vasthouden, belonen (mock-checkup)."),
-    _s(25, "dieren", "Paarden dichtbij (3/3)", "Als het rustig blijft; anders afstand houden."),
-    _s(26, "mensen", "Drukkere plek van afstand (terras)", "Kijken naar reuring vanaf een rustige plek."),
-    _s(27, "rust", "Rustdag", "", rest=True),
-    _s(28, "mensen", "Puppycursus: proefles/kennismaking (1/2)", "Na 2e enting doorgaans mogelijk; check met de school."),
-    _s(29, "dieren", "Herders van opa en oma (3/3)", "Ontspannen samen zijn/kort spelen."),
-    _s(30, "omgeving", "Wandeling in het bos", "Nieuwe geuren, geluiden; kort en rustig."),
-    _s(31, "hanteren", "Volledige verzorgingsronde", "Borstelen, oren, pootjes, tanden bekijken."),
-    _s(32, "mensen", "Puppycursus (2/2)", "Tweede sessie; oefenen tussen andere pups."),
-    _s(33, "rust", "Rustdag", "", rest=True),
-    _s(34, "omgeving", "Terugblik + nieuwe uitdaging naar keuze", "Wat ging goed? Kies bewust 1 nieuwe, veilige prikkel."),
+_DAILY_SCHEDULE: list[dict[str, Any]] = [
+    {"time": "07:00", "type": "plassen", "label": _L("Ochtendplas", "Morning potty"),
+     "note": _L("Direct uit de bench naar buiten. Beloon buiten plassen rustig.",
+                "Straight from the crate to outside. Calmly reward going outside.")},
+    {"time": "07:15", "type": "eten", "label": _L("Ontbijt", "Breakfast"),
+     "note": _L("Maaltijd 1 van de dag.", "Meal 1 of the day.")},
+    {"time": "07:45", "type": "plassen", "label": _L("Plas na eten", "Potty after eating"),
+     "note": _L("Kort na de maaltijd nog even naar buiten.", "Head outside shortly after the meal.")},
+    {"time": "08:00", "type": "beweging", "label": _L("Kort rondje / spel", "Short walk / play"),
+     "note": _L("5-minutenregel: leeftijd in mnd x 5 min, aan de ondergrens.",
+                "5-minute rule: age in months x 5 min, at the low end.")},
+    {"time": "08:30", "type": "rust", "label": _L("Slaapje", "Nap"),
+     "note": _L("Rust is leren. Laat de pup ongestoord slapen.",
+                "Rest is learning. Let the pup sleep undisturbed.")},
+    {"time": "10:00", "type": "plassen", "label": _L("Plaspauze", "Potty break"),
+     "note": _L("Na het slaapje meteen naar buiten.", "Straight outside after the nap.")},
+    {"time": "10:30", "type": "verzorging", "label": _L("Borstelen", "Brushing"),
+     "note": _L("Dagelijks kort borstelen als vast, positief momentje.",
+                "A short daily brush as a fixed, positive moment.")},
+    {"time": "12:00", "type": "eten", "label": _L("Lunch", "Lunch"),
+     "note": _L("Maaltijd 2 van de dag.", "Meal 2 of the day.")},
+    {"time": "12:30", "type": "plassen", "label": _L("Plas na eten", "Potty after eating"),
+     "note": _L("", "")},
+    {"time": "13:00", "type": "rust", "label": _L("Middagslaap", "Afternoon nap"),
+     "note": _L("", "")},
+    {"time": "15:00", "type": "plassen", "label": _L("Plaspauze", "Potty break"),
+     "note": _L("", "")},
+    {"time": "15:30", "type": "beweging", "label": _L("Socialisatie-uitje", "Socialization outing"),
+     "note": _L("Zie het socialisatieprogramma voor de activiteit van vandaag.",
+                "See the socialization program for today's activity.")},
+    {"time": "17:00", "type": "eten", "label": _L("Avondeten", "Dinner"),
+     "note": _L("Maaltijd 3 van de dag.", "Meal 3 of the day.")},
+    {"time": "17:30", "type": "plassen", "label": _L("Plas na eten", "Potty after eating"),
+     "note": _L("", "")},
+    {"time": "19:00", "type": "rust", "label": _L("Avondrust", "Evening rest"),
+     "note": _L("Rustig samen, geen wilde spelletjes meer.", "Quiet together, no more wild play.")},
+    {"time": "21:00", "type": "eten", "label": _L("Kleine laatste hap", "Small last meal"),
+     "note": _L("Optioneel maaltijd 4; bouw af naar 3 als de pup dat aankan.",
+                "Optional meal 4; taper to 3 when the pup can handle it.")},
+    {"time": "21:45", "type": "plassen", "label": _L("Laatste plas", "Last potty"),
+     "note": _L("Laatste ronde voor de nacht.", "Last round before the night.")},
+    {"time": "22:00", "type": "rust", "label": _L("Nacht: bench", "Night: crate"),
+     "note": _L("Bench naast bed; geen licht, geen spel, geen praten.",
+                "Crate next to the bed; no light, no play, no talking.")},
+    {"time": "01:30", "type": "plassen", "label": _L("Nachtronde 1", "Night round 1"),
+     "note": _L("Alleen uitlaten en terug. Geen licht, geen spel, geen praten.",
+                "Only out and back. No light, no play, no talking.")},
+    {"time": "04:30", "type": "plassen", "label": _L("Nachtronde 2", "Night round 2"),
+     "note": _L("Schrap een ronde zodra de pup 's nachts droog blijft.",
+                "Drop a round once the pup stays dry through the night.")},
 ]
+
+
+def daily_schedule(lang: str) -> list[dict[str, Any]]:
+    return [
+        {"time": it["time"], "type": it["type"],
+         "label": _t(it["label"], lang), "note": _t(it["note"], lang)}
+        for it in _DAILY_SCHEDULE
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Socialization program: 35 days from homecoming (day 0 = homecoming).
+# ---------------------------------------------------------------------------
+
+def _s(day: int, category: str, nl: str, en: str, note_nl: str = "", note_en: str = "") -> dict[str, Any]:
+    return {"day": day, "category": category, "activity": _L(nl, en), "note": _L(note_nl, note_en)}
+
+
+_SOCIALIZATION_PROGRAM: list[dict[str, Any]] = [
+    _s(0, "rust", "Thuiskomst: rustig laten wennen", "Homecoming: settle in quietly",
+       "Alleen huis en tuin. Geen bezoek, veel rust.", "House and garden only. No visitors, lots of rest."),
+    _s(1, "omgeving", "Huis verkennen: geluiden binnen", "Explore the house: indoor sounds",
+       "Stofzuiger van afstand aan, beloon rustig gedrag.", "Vacuum on from a distance, reward calm behavior."),
+    _s(2, "hanteren", "Pootjes, oren en bek kort aanraken", "Briefly touch paws, ears and mouth",
+       "Kort, positief, met een beloning. Stop voor de pup het spannend vindt.",
+       "Short, positive, with a reward. Stop before the pup finds it stressful."),
+    _s(3, "mensen", "1-2 rustige bezoekers thuis", "1-2 calm visitors at home",
+       "Laat de pup zelf benaderen; niet overladen.", "Let the pup approach on its own; don't overwhelm."),
+    _s(4, "omgeving", "Auto: kort stukje meerijden", "Car: a short ride along",
+       "Eerst stilstaand wennen, dan een kort ritje.", "Get used to it parked first, then a short ride."),
+    _s(5, "rust", "Rustdag", "Rest day", "Verwerken. Alleen bekende routines.", "Processing. Familiar routines only."),
+    _s(6, "dieren", "Paarden op afstand bekijken (1/3)", "Watch horses from a distance (1/3)",
+       "Grote afstand, rustig kijken. Stoppen bij spanning.", "Large distance, calm watching. Stop if tense."),
+    _s(7, "mensen", "Wandelaars/fietsers van afstand", "Walkers/cyclists from a distance",
+       "Op een bankje kijken naar voorbijgangers.", "Watch passers-by from a bench."),
+    _s(8, "omgeving", "Verschillende ondergronden", "Different surfaces",
+       "Gras, grind, tegels, metalen rooster: laat zelf kiezen.", "Grass, gravel, tiles, metal grate: let the pup choose."),
+    _s(9, "hanteren", "Wennen aan halsband/tuigje", "Getting used to collar/harness",
+       "Kort omdoen, afleiden met spel, weer af.", "Put on briefly, distract with play, take off again."),
+    _s(10, "dieren", "Schapen op afstand (1/2)", "Sheep from a distance (1/2)",
+       "Ruime afstand van het hek; rustig kijken en belonen.", "Well back from the fence; watch calmly and reward."),
+    _s(11, "rust", "Rustdag", "Rest day"),
+    _s(12, "dieren", "Paarden dichterbij (2/3)", "Horses closer (2/3)",
+       "Iets kortere afstand dan de vorige keer, als het rustig ging.",
+       "A bit closer than last time, if it went calmly."),
+    _s(13, "mensen", "Kinderen op afstand horen/zien", "See/hear children from a distance",
+       "Speelplaats van afstand; nooit door kinderen laten bestormen.",
+       "Playground from a distance; never let children swarm the pup."),
+    _s(14, "omgeving", "Bouwmarkt bezoek (1/2)", "Hardware store visit (1/2)",
+       "Draag de pup naar binnen (1 enting): karren, geluiden, mensen.",
+       "Carry the pup inside (only 1 vaccination): carts, sounds, people."),
+    _s(15, "hanteren", "Nagels bekijken + voetbadje simuleren", "Inspect nails + mock foot bath",
+       "Aanraken en belonen; nog niet per se knippen.", "Touch and reward; not necessarily clipping yet."),
+    _s(16, "dieren", "Herders van opa en oma (1/3)", "Grandparents' shepherds (1/3)",
+       "Rustige, gevaccineerde honden. Korte, positieve kennismaking.",
+       "Calm, vaccinated dogs. Short, positive introduction."),
+    _s(17, "rust", "Rustdag", "Rest day"),
+    _s(18, "omgeving", "Dorp/straat: verkeer van afstand", "Village/street: traffic from a distance",
+       "Kort, op afstand van drukke weg. Beloon rust.", "Short, away from a busy road. Reward calm."),
+    _s(19, "dieren", "Schapen dichterbij (2/2)", "Sheep closer (2/2)",
+       "Kortere afstand als het eerder goed ging.", "Shorter distance if it went well before."),
+    _s(20, "mensen", "Mensen met hoed/paraplu/rollator", "People with hat/umbrella/walker",
+       "Vreemde silhouetten positief associeren.", "Positively associate unusual silhouettes."),
+    _s(21, "dieren", "Herders van opa en oma (2/3)", "Grandparents' shepherds (2/3)",
+       "Iets langere, rustige interactie.", "A slightly longer, calm interaction."),
+    _s(22, "rust", "Rustdag", "Rest day"),
+    _s(23, "omgeving", "Bouwmarkt bezoek (2/2)", "Hardware store visit (2/2)",
+       "Herhaling; kijk of de pup rustiger is dan de eerste keer.",
+       "Repeat; see whether the pup is calmer than the first time."),
+    _s(24, "hanteren", "Dierenarts-handling oefenen", "Practice vet handling",
+       "Op tafel tillen, vasthouden, belonen (mock-checkup).", "Lift onto a table, hold, reward (mock checkup)."),
+    _s(25, "dieren", "Paarden dichtbij (3/3)", "Horses up close (3/3)",
+       "Als het rustig blijft; anders afstand houden.", "If it stays calm; otherwise keep distance."),
+    _s(26, "mensen", "Drukkere plek van afstand (terras)", "Busier place from a distance (terrace)",
+       "Kijken naar reuring vanaf een rustige plek.", "Watch the bustle from a calm spot."),
+    _s(27, "rust", "Rustdag", "Rest day"),
+    _s(28, "mensen", "Puppycursus: proefles/kennismaking (1/2)", "Puppy class: trial/intro (1/2)",
+       "Na 2e enting doorgaans mogelijk; check met de school.",
+       "Usually possible after the 2nd vaccination; check with the school."),
+    _s(29, "dieren", "Herders van opa en oma (3/3)", "Grandparents' shepherds (3/3)",
+       "Ontspannen samen zijn/kort spelen.", "Relaxed time together / short play."),
+    _s(30, "omgeving", "Wandeling in het bos", "Walk in the woods",
+       "Nieuwe geuren, geluiden; kort en rustig.", "New smells, sounds; short and calm."),
+    _s(31, "hanteren", "Volledige verzorgingsronde", "Full grooming round",
+       "Borstelen, oren, pootjes, tanden bekijken.", "Brush, check ears, paws, teeth."),
+    _s(32, "mensen", "Puppycursus (2/2)", "Puppy class (2/2)",
+       "Tweede sessie; oefenen tussen andere pups.", "Second session; practicing among other pups."),
+    _s(33, "rust", "Rustdag", "Rest day"),
+    _s(34, "omgeving", "Terugblik + nieuwe uitdaging naar keuze", "Recap + a new challenge of your choice",
+       "Wat ging goed? Kies bewust 1 nieuwe, veilige prikkel.",
+       "What went well? Deliberately pick 1 new, safe stimulus."),
+]
+
+
+def socialization_program(lang: str) -> list[dict[str, Any]]:
+    return [
+        {"day": it["day"], "category": it["category"],
+         "activity": _t(it["activity"], lang), "note": _t(it["note"], lang)}
+        for it in _SOCIALIZATION_PROGRAM
+    ]

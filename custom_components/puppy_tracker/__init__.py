@@ -29,6 +29,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: PuppyConfigEntry) -> boo
     db = PuppyTrackerDB(hass)
     await db.async_setup()
 
+    # On first run, default the content language to Home Assistant's language.
+    if await queries.get_app_state(db.conn, "language") is None:
+        ha_lang = (hass.config.language or "nl").split("-")[0].lower()
+        await queries.set_app_state(db.conn, "language", "en" if ha_lang == "en" else "nl")
+
     # Seed the puppy profile row from the config entry if the DB is empty.
     existing = await queries.get_puppy(db.conn)
     if existing is None:
