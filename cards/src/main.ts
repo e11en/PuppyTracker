@@ -130,6 +130,7 @@ export class PuppyTrackerPanel extends LitElement {
   @state() private _editProto?: number;
   @state() private _schedForm?: string; // phase key we're adding an item to
   @state() private _editSched?: number; // schedule item id being edited
+  @state() private _socAddWeek?: number; // socialization week index we're adding to
   @state() private _confirm?: { kind: "task" | "protocol" | "step"; id: number };
 
   private _timer?: number;
@@ -332,12 +333,35 @@ export class PuppyTrackerPanel extends LitElement {
     const title = (this.renderRoot.querySelector("#es-title") as HTMLInputElement)?.value.trim();
     const dateStr = (this.renderRoot.querySelector("#es-date") as HTMLInputElement)?.value;
     const notes = (this.renderRoot.querySelector("#es-notes") as HTMLInputElement)?.value ?? "";
+    const catEl = this.renderRoot.querySelector("#es-cat") as HTMLSelectElement | null;
     if (!title) return;
     const off = this._dateToOffset(protocol.start_date, dateStr);
     this._editStep = undefined;
     const payload: Record<string, unknown> = { step_id: step.id, title, notes };
     if (off !== null) payload.day_offset = off;
+    if (catEl) payload.category = catEl.value;
     const r = await this._ws<{ protocols: Protocol[] }>("update_step", payload);
+    if (r) this._merge({ protocols: r.protocols });
+  }
+
+  private _socCatOptions(s: State, selected: string) {
+    return Object.entries(s.socialization_categories).map(
+      ([key, c]) => html`<option value=${key} ?selected=${key === selected}>${c.label}</option>`,
+    );
+  }
+
+  private async _submitSocAdd(proto: Protocol, weekIndex: number): Promise<void> {
+    const title = (this.renderRoot.querySelector("#sa-title") as HTMLInputElement)?.value.trim();
+    const cat = (this.renderRoot.querySelector("#sa-cat") as HTMLSelectElement)?.value ?? "omgeving";
+    if (!title) return;
+    this._socAddWeek = undefined;
+    const r = await this._ws<{ protocols: Protocol[] }>("add_step", {
+      protocol_id: proto.id,
+      title,
+      category: cat,
+      day_offset: weekIndex * 7,
+      check_mode: "milestone",
+    });
     if (r) this._merge({ protocols: r.protocols });
   }
 
@@ -780,9 +804,15 @@ export class PuppyTrackerPanel extends LitElement {
   private _renderPhaseSchedule(s: State, p: Phase) {
     const items = [...(s.schedules[p.key] ?? [])].sort((a, b) => (a.time < b.time ? -1 : 1));
     return html`
-      <div class="phase-sched">
-        <div class="ps-head">
-          <h4><ha-icon icon="mdi:clock-outline"></ha-icon> Dagschema voor deze fase</h4>
+      <details class="phase-sched">
+        <summary>
+          <span class="ps-summary">
+            <ha-icon class="chev" icon="mdi:chevron-right"></ha-icon>
+            <ha-icon icon="mdi:clock-outline"></ha-icon> Dagschema voor deze fase
+          </span>
+          <small class="muted">${items.length} items</small>
+        </summary>
+        <div class="ps-actions">
           <button class="link" @click=${() => (this._schedForm = this._schedForm === p.key ? undefined : p.key)}>+ Item</button>
         </div>
         ${this._schedForm === p.key
@@ -814,12 +844,12 @@ export class PuppyTrackerPanel extends LitElement {
                     <span>${it.label}</span>
                     ${it.notes ? html`<span class="ps-note">${it.notes}</span>` : nothing}
                   </span>
-                  <button class="link" @click=${() => (this._editSched = it.id)}>Bewerken</button>
-                  <button class="link danger" title="Verwijderen" @click=${() => this._removeSchedItem(it.id)}>×</button>
+                  <button class="icon-link" title="Bewerken" @click=${() => (this._editSched = it.id)}><ha-icon icon="mdi:pencil"></ha-icon></button>
+                  <button class="icon-link danger" title="Verwijderen" @click=${() => this._removeSchedItem(it.id)}><ha-icon icon="mdi:delete-outline"></ha-icon></button>
                 </div>`,
           )}
         </div>
-      </div>
+      </details>
     `;
   }
 
@@ -901,6 +931,14 @@ export class PuppyTrackerPanel extends LitElement {
           ${items.length === 0 ? html`<div class="muted small">Geen activiteiten deze week.</div>` : nothing}
           ${items.map((st) => this._renderSocItem(s, proto, st, i, weeks))}
         </div>
+        ${this._socAddWeek === i
+          ? html`<div class="inline-form">
+              <label class="fld grow">Activiteit<input id="sa-title" type="text" placeholder="bv. Trein horen" /></label>
+              <label class="fld">Categorie<select id="sa-cat">${this._socCatOptions(s, "omgeving")}</select></label>
+              <button class="primary" @click=${() => this._submitSocAdd(proto, i)}>Toevoegen</button>
+              <button class="link" @click=${() => (this._socAddWeek = undefined)}>Annuleer</button>
+            </div>`
+          : html`<button class="link add-week" @click=${() => (this._socAddWeek = i)}>+ activiteit</button>`}
       </div>
     `;
   }
@@ -913,6 +951,7 @@ export class PuppyTrackerPanel extends LitElement {
           <input id="es-title" type="text" .value=${st.title} placeholder="activiteit" />
           <input id="es-notes" type="text" .value=${st.notes} placeholder="notitie (optioneel)" />
           <input id="es-date" type="hidden" .value=${st.effective_date ?? ""} />
+          <label class="fld">Categorie<select id="es-cat">${this._socCatOptions(s, st.category)}</select></label>
           <div class="soc-edit-row">
             <span class="wk-move">
               Week:
@@ -936,7 +975,7 @@ export class PuppyTrackerPanel extends LitElement {
           <span class="soc-item-title">${st.title}</span>
           ${st.notes ? html`<span class="soc-item-note">${st.notes}</span>` : nothing}
         </span>
-        <button class="link edit-btn" @click=${() => (this._editStep = st.id)}>Bewerken</button>
+        <button class="icon-link edit-btn" title="Bewerken" @click=${() => (this._editStep = st.id)}><ha-icon icon="mdi:pencil"></ha-icon></button>
       </div>
     `;
   }
@@ -1009,7 +1048,7 @@ export class PuppyTrackerPanel extends LitElement {
                     <div class="proto-head">
                       <strong>${p.name}</strong>
                       <span>
-                        <button class="link" @click=${() => (this._editProto = p.id)}>Bewerken</button>
+                        <button class="icon-link" title="Bewerken" @click=${() => (this._editProto = p.id)}><ha-icon icon="mdi:pencil"></ha-icon></button>
                         <button class="link" @click=${() => { this._stepForm = this._stepForm === p.id ? undefined : p.id; }}>+ Stap</button>
                         ${this._confirm?.kind === "protocol" && this._confirm.id === p.id
                           ? html`<span class="confirm">Zeker?
@@ -1045,7 +1084,7 @@ export class PuppyTrackerPanel extends LitElement {
                           <input type="checkbox" .checked=${!!st.done_at} @change=${() => this._toggleStep(st)} />
                           <span class="step-date">${this._fmt(st.effective_date)}</span>
                           <span class="step-title">${st.title}</span>
-                          <button class="link" @click=${() => (this._editStep = st.id)}>Bewerken</button>
+                          <button class="icon-link" title="Bewerken" @click=${() => (this._editStep = st.id)}><ha-icon icon="mdi:pencil"></ha-icon></button>
                           ${this._deferControls(st)}
                           ${this._stepDelete(st)}
                         </div>
@@ -1118,6 +1157,11 @@ export class PuppyTrackerPanel extends LitElement {
     button.primary { background: var(--primary-color); color: var(--text-primary-color, #fff); }
     button.link { background: none; border: none; color: var(--primary-color); padding: 2px 4px; font-size: .8rem; }
     button.link.danger { color: var(--error-color, #b00020); }
+    .icon-link { background: none; border: none; cursor: pointer; color: var(--secondary-text-color, var(--primary-color)); padding: 2px; display: inline-flex; align-items: center; border-radius: 6px; flex: 0 0 auto; }
+    .icon-link:hover { color: var(--primary-color); background: color-mix(in srgb, var(--primary-text-color) 8%, transparent); }
+    .icon-link.danger { color: var(--secondary-text-color, #888); }
+    .icon-link.danger:hover { color: var(--error-color, #b00020); }
+    .icon-link ha-icon { --mdc-icon-size: 18px; width: 18px; height: 18px; }
     .chip { border-radius: 999px; padding: 6px 14px; background: var(--primary-color); color: var(--text-primary-color, #fff); border: none; }
     .chip.ghost { background: transparent; border: 1px solid var(--primary-color); color: var(--primary-color); }
 
@@ -1191,6 +1235,13 @@ export class PuppyTrackerPanel extends LitElement {
     .info-card { background: color-mix(in srgb, var(--primary-text-color) 5%, transparent); border-radius: 10px; padding: 10px 12px; }
     .info-card ul { margin: 0; padding-left: 16px; font-size: .82rem; }
     .phase-sched { margin-top: 14px; border-top: 1px solid var(--divider-color, #eee); padding-top: 10px; }
+    .phase-sched > summary { font-size: .92rem; }
+    .ps-summary { display: inline-flex; align-items: center; gap: 6px; }
+    .chev { --mdc-icon-size: 18px; width: 18px; height: 18px; opacity: .6; transition: transform .15s; }
+    details.phase-sched[open] > summary .chev { transform: rotate(90deg); }
+    .ps-actions { margin: 8px 0 4px; }
+    .add-week { margin-top: 6px; }
+    .soc-item.editing select, .fld select { padding: 6px; border-radius: 6px; border: 1px solid var(--divider-color, #ccc); background: var(--card-background-color); color: inherit; font: inherit; }
     .ps-head { display: flex; align-items: center; justify-content: space-between; }
     .ps-head h4 { margin: 0; }
     .ps-list { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
