@@ -95,12 +95,11 @@ interface State {
   tasks: Task[];
 }
 
-type Tab = "vandaag" | "fases" | "socialisatie" | "config";
+type Tab = "vandaag" | "fases" | "config";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "vandaag", label: "Vandaag" },
   { id: "fases", label: "Fases" },
-  { id: "socialisatie", label: "Socialisatie" },
   { id: "config", label: "Configuratie" },
 ];
 
@@ -214,11 +213,6 @@ export class PuppyTrackerPanel extends LitElement {
 
   private async _toggleDaily(key: string, done: boolean): Promise<void> {
     const r = await this._ws<{ daily_checks: string[] }>("toggle_daily_check", { item_key: key, done });
-    if (r) this._merge({ daily_checks: r.daily_checks });
-  }
-
-  private async _clearToday(): Promise<void> {
-    const r = await this._ws<{ daily_checks: string[] }>("clear_daily_checks");
     if (r) this._merge({ daily_checks: r.daily_checks });
   }
 
@@ -612,8 +606,6 @@ export class PuppyTrackerPanel extends LitElement {
     switch (this._tab) {
       case "fases":
         return this._renderPhases(s);
-      case "socialisatie":
-        return this._renderSocialization(s);
       case "config":
         return this._renderConfig(s);
       default:
@@ -705,7 +697,6 @@ export class PuppyTrackerPanel extends LitElement {
       <section>
         <div class="sec-head">
           <h2><ha-icon icon="mdi:clock-outline"></ha-icon> Dagschema & taken (vandaag)</h2>
-          <button class="ghost" @click=${this._clearToday}>Wis vandaag</button>
         </div>
         ${rest ? html`<div class="rest-banner">💥 Rustdag — ${rest.title}</div>` : nothing}
         <div class="timeline-scroll">
@@ -1072,14 +1063,16 @@ export class PuppyTrackerPanel extends LitElement {
   private _renderSocWeek(s: State, proto: Protocol, items: Step[], i: number, currentWeek: number | null, weeks: number) {
     const done = items.filter((st) => st.done_at).length;
     const isCurrent = currentWeek === i;
+    const isPast = currentWeek !== null && currentWeek >= 0 && i < currentWeek;
     const ordered = [...items].sort((a, b) => a.day_offset - b.day_offset || a.id - b.id);
     return html`
-      <div class="week-card ${isCurrent ? "current" : ""}">
+      <div class="week-card ${isCurrent ? "current" : ""} ${isPast ? "past" : ""}">
         <div class="week-head">
           <div>
             <strong>Week ${i + 1}</strong>
             <small class="muted">${7 + i}-${8 + i} wk</small>
             ${isCurrent ? html`<span class="badge">Nu</span>` : nothing}
+            ${isPast ? html`<span class="past-tag">voorbij</span>` : nothing}
           </div>
           <span class="week-progress">${done}/${items.length}</span>
         </div>
@@ -1281,6 +1274,7 @@ export class PuppyTrackerPanel extends LitElement {
           <p class="muted">Bij het wijzigen van de thuiskomstdatum schuift het socialisatie- en benchschema automatisch mee.</p>
         </div>
       </section>
+      ${this._renderSocialization(s)}
       ${this._renderSchedules(s)}
     `;
   }
@@ -1446,6 +1440,9 @@ export class PuppyTrackerPanel extends LitElement {
     .weeks { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
     .week-card { border: 1px solid var(--divider-color, #ddd); border-radius: 12px; padding: 10px 12px; background: color-mix(in srgb, var(--primary-text-color) 3%, transparent); }
     .week-card.current { border-color: var(--primary-color); box-shadow: 0 0 0 1px var(--primary-color) inset; }
+    .week-card.past { opacity: .5; }
+    .week-card.past:hover, .week-card.past:focus-within { opacity: 1; }
+    .past-tag { font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; background: color-mix(in srgb, var(--primary-text-color) 12%, transparent); border-radius: 999px; padding: 2px 8px; margin-left: 6px; }
     .week-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
     .week-head .badge { margin-left: 6px; }
     .week-progress { font-size: .8rem; opacity: .7; font-variant-numeric: tabular-nums; }
