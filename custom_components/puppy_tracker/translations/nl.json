@@ -1,0 +1,16 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Puppy Tracker",
+        "description": "Stel het volgen van je puppy in.",
+        "data": {
+          "name": "Naam puppy",
+          "birth_date": "Geboortedatum",
+          "homecoming_date": "Thuiskomstdatum"
+        }
+      }
+    },
+    "single_instance_allowed": "Puppy Tracker is al geconfigureerd."
+  }
+}

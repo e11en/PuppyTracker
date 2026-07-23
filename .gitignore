@@ -18,3 +18,5 @@ cards/dist/
 *.swp
 .idea/
 .vscode/
+.venv/
+dist/

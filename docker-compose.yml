@@ -1,0 +1,13 @@
+services:
+  homeassistant:
+    container_name: puppy-tracker-ha
+    image: ghcr.io/home-assistant/home-assistant:stable
+    volumes:
+      - ./ha-config:/config
+      - ./custom_components/puppy_tracker:/config/custom_components/puppy_tracker
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - TZ=Europe/Amsterdam
+    ports:
+      - "8123:8123"
+    restart: unless-stopped

@@ -1,0 +1,15 @@
+{
+  "domain": "puppy_tracker",
+  "name": "Puppy Tracker",
+  "codeowners": ["@e11en"],
+  "config_flow": true,
+  "single_config_entry": true,
+  "dependencies": ["frontend", "http", "lovelace", "websocket_api"],
+  "after_dependencies": ["panel_custom"],
+  "documentation": "https://github.com/e11en/PuppyTracker",
+  "homeassistant": "2024.7.0",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/e11en/PuppyTracker/issues",
+  "requirements": ["aiosqlite>=0.20.0"],
+  "version": "0.1.0"
+}
