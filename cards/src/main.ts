@@ -104,6 +104,11 @@ export class PuppyTrackerPanel extends LitElement {
   @state() private _state?: State;
   @state() private _error = "";
   @state() private _tab: Tab = "vandaag";
+  @state() private _defer?: { stepId: number; days: number };
+  @state() private _taskForm = false;
+  @state() private _protoForm = false;
+  @state() private _stepForm?: number;
+  @state() private _confirm?: { kind: "task" | "protocol"; id: number };
 
   private _timer?: number;
   private _loaded = false;
@@ -176,12 +181,14 @@ export class PuppyTrackerPanel extends LitElement {
     if (r) this._merge({ protocols: r.protocols });
   }
 
-  private async _deferStep(step: Step): Promise<void> {
-    const raw = window.prompt("Hoeveel dagen uitstellen? (negatief = vervroegen)", "1");
-    if (raw === null) return;
-    const days = parseInt(raw, 10);
-    if (Number.isNaN(days) || days === 0) return;
-    const r = await this._ws<{ protocols: Protocol[] }>("defer_step", { step_id: step.id, days });
+  private async _applyDefer(): Promise<void> {
+    if (!this._defer || this._defer.days === 0) {
+      this._defer = undefined;
+      return;
+    }
+    const { stepId, days } = this._defer;
+    this._defer = undefined;
+    const r = await this._ws<{ protocols: Protocol[] }>("defer_step", { step_id: stepId, days });
     if (r) this._merge({ protocols: r.protocols });
   }
 
@@ -190,39 +197,42 @@ export class PuppyTrackerPanel extends LitElement {
     if (r) this._merge({ tasks: r.tasks });
   }
 
-  private async _removeTask(task: Task): Promise<void> {
-    if (!window.confirm(`Taak "${task.title}" verwijderen?`)) return;
-    const r = await this._ws<{ tasks: Task[] }>("remove_task", { task_id: task.id });
+  private async _removeTask(id: number): Promise<void> {
+    this._confirm = undefined;
+    const r = await this._ws<{ tasks: Task[] }>("remove_task", { task_id: id });
     if (r) this._merge({ tasks: r.tasks });
   }
 
-  private async _addTask(): Promise<void> {
-    const title = window.prompt("Titel van de taak (bv. Dierenarts)");
+  private async _submitTask(): Promise<void> {
+    const title = (this.renderRoot.querySelector("#nt-title") as HTMLInputElement)?.value.trim();
+    const date = (this.renderRoot.querySelector("#nt-date") as HTMLInputElement)?.value;
     if (!title) return;
-    const date = window.prompt("Datum (JJJJ-MM-DD), leeg = geen datum", this._state?.today ?? "");
+    this._taskForm = false;
     const r = await this._ws<{ tasks: Task[] }>("add_task", { title, date: date || null });
     if (r) this._merge({ tasks: r.tasks });
   }
 
-  private async _addProtocol(): Promise<void> {
-    const name = window.prompt("Naam van het schema");
+  private async _submitProtocol(): Promise<void> {
+    const name = (this.renderRoot.querySelector("#np-name") as HTMLInputElement)?.value.trim();
+    const start = (this.renderRoot.querySelector("#np-start") as HTMLInputElement)?.value;
     if (!name) return;
-    const start = window.prompt("Startdatum (JJJJ-MM-DD)", this._state?.today ?? "");
+    this._protoForm = false;
     const r = await this._ws<{ protocols: Protocol[] }>("add_protocol", { name, anchor: "fixed", start_date: start || null });
     if (r) this._merge({ protocols: r.protocols });
   }
 
-  private async _addStep(protocol: Protocol): Promise<void> {
-    const title = window.prompt("Titel van de stap");
+  private async _submitStep(pid: number): Promise<void> {
+    const title = (this.renderRoot.querySelector("#ns-title") as HTMLInputElement)?.value.trim();
+    const off = (this.renderRoot.querySelector("#ns-off") as HTMLInputElement)?.value;
     if (!title) return;
-    const off = window.prompt("Dag-offset t.o.v. startdatum", String(protocol.steps.length));
-    const r = await this._ws<{ protocols: Protocol[] }>("add_step", { protocol_id: protocol.id, title, day_offset: parseInt(off ?? "0", 10) || 0 });
+    this._stepForm = undefined;
+    const r = await this._ws<{ protocols: Protocol[] }>("add_step", { protocol_id: pid, title, day_offset: parseInt(off || "0", 10) || 0 });
     if (r) this._merge({ protocols: r.protocols });
   }
 
-  private async _removeProtocol(p: Protocol): Promise<void> {
-    if (!window.confirm(`Schema "${p.name}" verwijderen?`)) return;
-    const r = await this._ws<{ protocols: Protocol[] }>("remove_protocol", { protocol_id: p.id });
+  private async _removeProtocol(id: number): Promise<void> {
+    this._confirm = undefined;
+    const r = await this._ws<{ protocols: Protocol[] }>("remove_protocol", { protocol_id: id });
     if (r) this._merge({ protocols: r.protocols });
   }
 
@@ -317,6 +327,21 @@ export class PuppyTrackerPanel extends LitElement {
     }
     rows.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
     return rows;
+  }
+
+  private _deferControls(step: Step) {
+    if (this._defer?.stepId === step.id) {
+      return html`
+        <span class="defer-inline">
+          <input type="number" .value=${String(this._defer.days)}
+            @input=${(e: Event) => (this._defer = { stepId: step.id, days: parseInt((e.target as HTMLInputElement).value, 10) || 0 })} />
+          <span class="dagen">dagen</span>
+          <button class="link" @click=${this._applyDefer}>Toepassen</button>
+          <button class="link" @click=${() => (this._defer = undefined)}>Annuleer</button>
+        </span>
+      `;
+    }
+    return html`<button class="link" @click=${() => (this._defer = { stepId: step.id, days: 1 })}>Uitstellen…</button>`;
   }
 
   // ---- Render ------------------------------------------------------------
@@ -471,7 +496,7 @@ export class PuppyTrackerPanel extends LitElement {
                         <span class="row-title">${step.title}</span>
                         <span class="row-note">${protocol.name}</span>
                       </span>
-                      <button class="link" @click=${() => this._deferStep(step)}>Uitstellen…</button>
+                      ${this._deferControls(step)}
                       <input type="checkbox" .checked=${!!step.done_at} @change=${() => this._toggleStep(step)} />
                     </label>
                   `,
@@ -573,7 +598,7 @@ export class PuppyTrackerPanel extends LitElement {
         </div>
         <div class="soc-act">${st.title}</div>
         ${st.notes ? html`<div class="soc-note">${st.notes}</div>` : nothing}
-        <button class="link" @click=${() => this._deferStep(st)}>Uitstellen…</button>
+        ${this._deferControls(st)}
       </div>
     `;
   }
@@ -587,10 +612,27 @@ export class PuppyTrackerPanel extends LitElement {
         <div class="sec-head">
           <h2>Schema's & taken</h2>
           <span>
-            <button class="ghost" @click=${this._addTask}>+ Taak</button>
-            <button class="ghost" @click=${this._addProtocol}>+ Schema</button>
+            <button class="ghost" @click=${() => { this._taskForm = !this._taskForm; this._protoForm = false; }}>+ Taak</button>
+            <button class="ghost" @click=${() => { this._protoForm = !this._protoForm; this._taskForm = false; }}>+ Schema</button>
           </span>
         </div>
+
+        ${this._taskForm
+          ? html`<div class="inline-form">
+              <input id="nt-title" type="text" placeholder="Titel (bv. Dierenarts)" />
+              <input id="nt-date" type="date" .value=${s.today} />
+              <button class="primary" @click=${this._submitTask}>Toevoegen</button>
+              <button class="link" @click=${() => (this._taskForm = false)}>Annuleer</button>
+            </div>`
+          : nothing}
+        ${this._protoForm
+          ? html`<div class="inline-form">
+              <input id="np-name" type="text" placeholder="Naam schema" />
+              <input id="np-start" type="date" .value=${s.today} />
+              <button class="primary" @click=${this._submitProtocol}>Toevoegen</button>
+              <button class="link" @click=${() => (this._protoForm = false)}>Annuleer</button>
+            </div>`
+          : nothing}
 
         ${s.tasks.length
           ? html`<div class="tasks">
@@ -602,7 +644,11 @@ export class PuppyTrackerPanel extends LitElement {
                       <span class="task-title">${t.title}</span>
                       ${t.date ? html`<span class="task-date">${this._fmt(t.date)}</span>` : nothing}
                     </span>
-                    <button class="link danger" @click=${() => this._removeTask(t)}>×</button>
+                    ${this._confirm?.kind === "task" && this._confirm.id === t.id
+                      ? html`<span class="confirm">Zeker?
+                          <button class="link danger" @click=${() => this._removeTask(t.id)}>Ja</button>
+                          <button class="link" @click=${() => (this._confirm = undefined)}>Nee</button></span>`
+                      : html`<button class="link danger" @click=${() => (this._confirm = { kind: "task", id: t.id })}>×</button>`}
                   </div>
                 `,
               )}
@@ -615,11 +661,23 @@ export class PuppyTrackerPanel extends LitElement {
               <div class="proto-head">
                 <strong>${p.name}</strong>
                 <span>
-                  <button class="link" @click=${() => this._addStep(p)}>+ Stap</button>
-                  <button class="link danger" @click=${() => this._removeProtocol(p)}>Verwijderen</button>
+                  <button class="link" @click=${() => (this._stepForm = this._stepForm === p.id ? undefined : p.id)}>+ Stap</button>
+                  ${this._confirm?.kind === "protocol" && this._confirm.id === p.id
+                    ? html`<span class="confirm">Zeker?
+                        <button class="link danger" @click=${() => this._removeProtocol(p.id)}>Ja</button>
+                        <button class="link" @click=${() => (this._confirm = undefined)}>Nee</button></span>`
+                    : html`<button class="link danger" @click=${() => (this._confirm = { kind: "protocol", id: p.id })}>Verwijderen</button>`}
                 </span>
               </div>
               ${p.notes ? html`<div class="proto-note">${p.notes}</div>` : nothing}
+              ${this._stepForm === p.id
+                ? html`<div class="inline-form">
+                    <input id="ns-title" type="text" placeholder="Titel van de stap" />
+                    <input id="ns-off" type="number" placeholder="dag-offset" .value=${String(p.steps.length)} />
+                    <button class="primary" @click=${() => this._submitStep(p.id)}>Toevoegen</button>
+                    <button class="link" @click=${() => (this._stepForm = undefined)}>Annuleer</button>
+                  </div>`
+                : nothing}
               <div class="steps">
                 ${p.steps.map(
                   (st) => html`
@@ -627,7 +685,7 @@ export class PuppyTrackerPanel extends LitElement {
                       <input type="checkbox" .checked=${!!st.done_at} @change=${() => this._toggleStep(st)} />
                       <span class="step-date">${this._fmt(st.effective_date)}</span>
                       <span class="step-title">${st.title}</span>
-                      <button class="link" @click=${() => this._deferStep(st)}>Uitstellen…</button>
+                      ${this._deferControls(st)}
                     </div>
                   `,
                 )}
@@ -768,6 +826,14 @@ export class PuppyTrackerPanel extends LitElement {
     .proto-head { display: flex; justify-content: space-between; align-items: center; }
     .proto-note { font-size: .8rem; opacity: .7; margin: 4px 0; }
     .steps { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+
+    .defer-inline { display: inline-flex; align-items: center; gap: 4px; }
+    .defer-inline input { width: 56px; padding: 4px; border-radius: 6px; border: 1px solid var(--divider-color, #ccc); background: var(--card-background-color); color: inherit; }
+    .defer-inline .dagen { font-size: .78rem; opacity: .7; }
+    .confirm { font-size: .8rem; display: inline-flex; align-items: center; gap: 4px; }
+    .inline-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; padding: 10px; border: 1px dashed var(--divider-color, #ccc); border-radius: 10px; }
+    .inline-form input[type="text"] { flex: 1; min-width: 160px; }
+    .inline-form input { padding: 8px; border-radius: 8px; border: 1px solid var(--divider-color, #ccc); background: var(--card-background-color); color: inherit; }
 
     /* Config */
     .settings { display: flex; flex-direction: column; gap: 10px; max-width: 360px; }
