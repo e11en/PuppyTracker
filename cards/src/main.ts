@@ -201,16 +201,6 @@ export class PuppyTrackerPanel extends LitElement {
     this.dispatchEvent(new CustomEvent("hass-toggle-menu", { bubbles: true, composed: true }));
   }
 
-  private async _markPee(): Promise<void> {
-    const s = await this._ws<State>("mark_pee");
-    if (s && s.puppy !== undefined) this._state = s;
-  }
-
-  private async _snoozePee(): Promise<void> {
-    const s = await this._ws<State>("snooze_pee", { minutes: 30 });
-    if (s && s.puppy !== undefined) this._state = s;
-  }
-
   private async _toggleDaily(key: string, done: boolean): Promise<void> {
     const r = await this._ws<{ daily_checks: string[] }>("toggle_daily_check", { item_key: key, done });
     if (r) this._merge({ daily_checks: r.daily_checks });
@@ -334,11 +324,13 @@ export class PuppyTrackerPanel extends LitElement {
     const dateStr = (this.renderRoot.querySelector("#es-date") as HTMLInputElement)?.value;
     const notes = (this.renderRoot.querySelector("#es-notes") as HTMLInputElement)?.value ?? "";
     const catEl = this.renderRoot.querySelector("#es-cat") as HTMLSelectElement | null;
+    const dayEl = this.renderRoot.querySelector("#es-day") as HTMLSelectElement | null;
     if (!title) return;
     const off = this._dateToOffset(protocol.start_date, dateStr);
     this._editStep = undefined;
     const payload: Record<string, unknown> = { step_id: step.id, title, notes };
-    if (off !== null) payload.day_offset = off;
+    if (dayEl) payload.day_offset = parseInt(dayEl.value, 10);
+    else if (off !== null) payload.day_offset = off;
     if (catEl) payload.category = catEl.value;
     const r = await this._ws<{ protocols: Protocol[] }>("update_step", payload);
     if (r) this._merge({ protocols: r.protocols });
@@ -350,16 +342,33 @@ export class PuppyTrackerPanel extends LitElement {
     );
   }
 
+  private _dateForOffset(startDate: string | null, offset: number): string | null {
+    if (!startDate) return null;
+    const d = new Date(startDate + "T00:00:00");
+    d.setDate(d.getDate() + offset);
+    return this._isoLocal(d);
+  }
+
+  private _weekDayOptions(proto: Protocol, weekIndex: number, selectedOffset: number) {
+    return Array.from({ length: 7 }, (_, d) => {
+      const off = weekIndex * 7 + d;
+      const date = this._dateForOffset(proto.start_date, off);
+      const label = date ? this._dayLabel(date) : `Dag ${d + 1}`;
+      return html`<option value=${off} ?selected=${off === selectedOffset}>${label}</option>`;
+    });
+  }
+
   private async _submitSocAdd(proto: Protocol, weekIndex: number): Promise<void> {
     const title = (this.renderRoot.querySelector("#sa-title") as HTMLInputElement)?.value.trim();
     const cat = (this.renderRoot.querySelector("#sa-cat") as HTMLSelectElement)?.value ?? "omgeving";
+    const dayEl = this.renderRoot.querySelector("#sa-day") as HTMLSelectElement | null;
     if (!title) return;
     this._socAddWeek = undefined;
     const r = await this._ws<{ protocols: Protocol[] }>("add_step", {
       protocol_id: proto.id,
       title,
       category: cat,
-      day_offset: weekIndex * 7,
+      day_offset: dayEl ? parseInt(dayEl.value, 10) : weekIndex * 7,
       check_mode: "milestone",
     });
     if (r) this._merge({ protocols: r.protocols });
@@ -469,13 +478,32 @@ export class PuppyTrackerPanel extends LitElement {
     return `${w} ${w === 1 ? "week" : "weken"} & ${d} ${d === 1 ? "dag" : "dagen"} oud`;
   }
 
-  private _countdown(): string {
-    const np = this._state?.next_pee;
-    if (!np) return "";
-    const secs = Math.max(0, Math.round((new Date(np.at).getTime() - Date.now()) / 1000));
+  private _countdownTo(at: Date): string {
+    const secs = Math.max(0, Math.round((at.getTime() - Date.now()) / 1000));
     const h = Math.floor(secs / 3600);
     const m = Math.floor((secs % 3600) / 60);
     return h > 0 ? `over ${h} u ${m} min` : `over ${m} min`;
+  }
+
+  /** Next pee = the first 'plassen' item in the active-phase schedule after now. */
+  private _nextPee(s: State): { time: string; at: Date } | null {
+    const sched = (s.phase && s.schedules[s.phase.key]) || [];
+    const pees = sched.filter((it) => it.type === "plassen");
+    if (!pees.length) return null;
+    const now = new Date();
+    const nowMins = minsFromStart(now.getHours(), now.getMinutes());
+    const sorted = pees.map((p) => ({ p, mins: timeToMins(p.time) })).sort((a, b) => a.mins - b.mins);
+    let pick = sorted.find((x) => x.mins > nowMins);
+    let extra = 0;
+    if (!pick) {
+      pick = sorted[0];
+      extra = 1440; // wrap to the next day's first pee
+    }
+    const anchor = new Date(now);
+    anchor.setHours(DAY_START_HOUR, 0, 0, 0);
+    if (now.getHours() < DAY_START_HOUR) anchor.setDate(anchor.getDate() - 1);
+    const at = new Date(anchor.getTime() + (pick.mins + extra) * 60000);
+    return { time: pick.p.time, at };
   }
 
   private _restToday(): Step | undefined {
@@ -617,21 +645,19 @@ export class PuppyTrackerPanel extends LitElement {
                 <div class="hero-focus">Focus: ${phase.focus.join(" · ")}</div>
               `
             : html`<div class="hero-focus">Stel een geboortedatum in bij Configuratie.</div>`}
-          ${s.walk_minutes != null
-            ? html`<div class="hero-rule">🐾 Berner-regel: 5-minutenregel — richtlijn ~${s.walk_minutes} min wandelen.</div>`
-            : nothing}
           ${s.in_fear_period ? html`<div class="hero-fear">⚠ Angstperiode: nieuwe prikkels positief en rustig opbouwen.</div>` : nothing}
-          <div class="pee">
-            <span class="pee-text">
-              Volgende plaspauze:
-              <strong>${s.next_pee ? new Date(s.next_pee.at).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" }) : "—"}</strong>
-              ${s.next_pee ? html`<em>${this._countdown()} · ${s.next_pee.interval_hours}u interval</em>` : nothing}
-            </span>
-            <span class="pee-btns">
-              <button class="chip" @click=${this._markPee}>Nu geplast</button>
-              <button class="chip ghost" @click=${this._snoozePee}>+30 min</button>
-            </span>
-          </div>
+          ${(() => {
+            const np = this._nextPee(s);
+            return html`
+              <div class="pee">
+                <span class="pee-text">
+                  Volgende plaspauze:
+                  <strong>${np ? np.time : "—"}</strong>
+                  ${np ? html`<em>${this._countdownTo(np.at)}</em>` : nothing}
+                </span>
+              </div>
+            `;
+          })()}
         </div>
       </div>
     `;
@@ -934,6 +960,7 @@ export class PuppyTrackerPanel extends LitElement {
         ${this._socAddWeek === i
           ? html`<div class="inline-form">
               <label class="fld grow">Activiteit<input id="sa-title" type="text" placeholder="bv. Trein horen" /></label>
+              <label class="fld">Dag<select id="sa-day">${this._weekDayOptions(proto, i, i * 7)}</select></label>
               <label class="fld">Categorie<select id="sa-cat">${this._socCatOptions(s, "omgeving")}</select></label>
               <button class="primary" @click=${() => this._submitSocAdd(proto, i)}>Toevoegen</button>
               <button class="link" @click=${() => (this._socAddWeek = undefined)}>Annuleer</button>
@@ -951,6 +978,7 @@ export class PuppyTrackerPanel extends LitElement {
           <input id="es-title" type="text" .value=${st.title} placeholder="activiteit" />
           <input id="es-notes" type="text" .value=${st.notes} placeholder="notitie (optioneel)" />
           <input id="es-date" type="hidden" .value=${st.effective_date ?? ""} />
+          <label class="fld">Dag<select id="es-day">${this._weekDayOptions(proto, Math.floor(st.day_offset / 7), st.day_offset)}</select></label>
           <label class="fld">Categorie<select id="es-cat">${this._socCatOptions(s, st.category)}</select></label>
           <div class="soc-edit-row">
             <span class="wk-move">
