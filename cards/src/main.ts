@@ -95,11 +95,10 @@ interface State {
   tasks: Task[];
 }
 
-type Tab = "vandaag" | "fases" | "config";
+type Tab = "vandaag" | "config";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "vandaag", label: "Vandaag" },
-  { id: "fases", label: "Fases" },
   { id: "config", label: "Configuratie" },
 ];
 
@@ -604,8 +603,6 @@ export class PuppyTrackerPanel extends LitElement {
 
   private _renderTab(s: State): TemplateResult {
     switch (this._tab) {
-      case "fases":
-        return this._renderPhases(s);
       case "config":
         return this._renderConfig(s);
       default:
@@ -628,38 +625,48 @@ export class PuppyTrackerPanel extends LitElement {
   private _renderHero(s: State) {
     const phase = s.phase;
     const photo = s.puppy?.photo_url;
+    const np = this._nextPee(s);
     return html`
       <div class="hero">
-        <div class="hero-photo">
-          ${photo ? html`<img src=${photo} alt="foto" />` : html`<ha-icon icon="mdi:dog"></ha-icon>`}
+        <div class="hero-top">
+          <div class="hero-photo">
+            ${photo ? html`<img src=${photo} alt="foto" />` : html`<ha-icon icon="mdi:dog"></ha-icon>`}
+          </div>
+          <div class="hero-body">
+            <div class="hero-name">${s.puppy?.name ?? "Puppy"}</div>
+            <div class="hero-age">${this._ageText()}</div>
+            ${phase
+              ? html`
+                  <div class="hero-phase">
+                    <span class="dot green"></span>
+                    <strong>${phase.title}</strong>
+                    <small>(${phase.week_start}-${phase.week_end} wkn)</small>
+                  </div>
+                  <div class="hero-focus">Focus: ${phase.focus.join(" · ")}</div>
+                `
+              : html`<div class="hero-focus">Stel een geboortedatum in bij Configuratie.</div>`}
+            ${s.in_fear_period ? html`<div class="hero-fear">⚠ Angstperiode: nieuwe prikkels positief en rustig opbouwen.</div>` : nothing}
+            <div class="pee">
+              <span class="pee-text">
+                Volgende plaspauze:
+                <strong>${np ? np.time : "—"}</strong>
+                ${np ? html`<em>${this._countdownTo(np.at)}</em>` : nothing}
+              </span>
+            </div>
+          </div>
         </div>
-        <div class="hero-body">
-          <div class="hero-name">${s.puppy?.name ?? "Puppy"}</div>
-          <div class="hero-age">${this._ageText()}</div>
-          ${phase
-            ? html`
-                <div class="hero-phase">
-                  <span class="dot green"></span>
-                  <strong>${phase.title}</strong>
-                  <small>(${phase.week_start}-${phase.week_end} wkn)</small>
-                </div>
-                <div class="hero-focus">Focus: ${phase.focus.join(" · ")}</div>
-              `
-            : html`<div class="hero-focus">Stel een geboortedatum in bij Configuratie.</div>`}
-          ${s.in_fear_period ? html`<div class="hero-fear">⚠ Angstperiode: nieuwe prikkels positief en rustig opbouwen.</div>` : nothing}
-          ${(() => {
-            const np = this._nextPee(s);
-            return html`
-              <div class="pee">
-                <span class="pee-text">
-                  Volgende plaspauze:
-                  <strong>${np ? np.time : "—"}</strong>
-                  ${np ? html`<em>${this._countdownTo(np.at)}</em>` : nothing}
-                </span>
-              </div>
-            `;
-          })()}
-        </div>
+        ${phase && phase.info_cards?.length
+          ? html`<div class="hero-cards">
+              ${phase.info_cards.map(
+                (c) => html`
+                  <div class="info-card">
+                    <h4><ha-icon icon=${c.icon}></ha-icon> ${c.title}</h4>
+                    <ul>${c.items.map((i) => html`<li>${i}</li>`)}</ul>
+                  </div>
+                `,
+              )}
+            </div>`
+          : nothing}
       </div>
     `;
   }
@@ -1274,6 +1281,7 @@ export class PuppyTrackerPanel extends LitElement {
           <p class="muted">Bij het wijzigen van de thuiskomstdatum schuift het socialisatie- en benchschema automatisch mee.</p>
         </div>
       </section>
+      ${this._renderPhases(s)}
       ${this._renderSocialization(s)}
       ${this._renderSchedules(s)}
     `;
@@ -1316,7 +1324,9 @@ export class PuppyTrackerPanel extends LitElement {
     .chip.ghost { background: transparent; border: 1px solid var(--primary-color); color: var(--primary-color); }
 
     /* Hero */
-    .hero { display: flex; gap: 16px; background: var(--card-background-color); border-radius: 14px; padding: 16px; margin-bottom: 14px; box-shadow: var(--ha-card-box-shadow, 0 2px 6px rgba(0,0,0,.12)); }
+    .hero { display: flex; flex-direction: column; gap: 14px; background: var(--card-background-color); border-radius: 14px; padding: 16px; margin-bottom: 14px; box-shadow: var(--ha-card-box-shadow, 0 2px 6px rgba(0,0,0,.12)); }
+    .hero-top { display: flex; gap: 16px; }
+    .hero-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; padding-top: 12px; border-top: 1px solid var(--divider-color, #eee); }
     .hero-photo { flex: 0 0 auto; width: 128px; height: 128px; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, var(--primary-color), color-mix(in srgb, var(--primary-color) 40%, #000)); color: #fff; }
     .hero-photo img { width: 100%; height: 100%; object-fit: cover; }
     .hero-photo ha-icon { --mdc-icon-size: 64px; }
