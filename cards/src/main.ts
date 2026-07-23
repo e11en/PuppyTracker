@@ -539,7 +539,7 @@ export class PuppyTrackerPanel extends LitElement {
     if (!s) return [];
     const end = new Date(s.today + "T00:00:00");
     end.setDate(end.getDate() + 7);
-    const endStr = end.toISOString().slice(0, 10);
+    const endStr = this._isoLocal(end); // local date; toISOString() would shift a day in +UTC zones
     const inRange = (d: string | null) => !!d && d >= s.today && d < endStr;
     const rows: { date: string; color: string; icon: string; title: string; step?: Step }[] = [];
     for (const t of s.tasks) {
@@ -775,7 +775,7 @@ export class PuppyTrackerPanel extends LitElement {
     let lastDate = "";
     return html`
       <section>
-        <h2><ha-icon icon="mdi:calendar-star"></ha-icon> Belangrijke gebeurtenissen (deze week)</h2>
+        <h2><ha-icon icon="mdi:calendar-star"></ha-icon> Belangrijke gebeurtenissen (komende 7 dagen)</h2>
         ${rows.length === 0 ? html`<p class="muted">Niets gepland deze week.</p>` : nothing}
         <div class="events">
           ${rows.map((r) => {
