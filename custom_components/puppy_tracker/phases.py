@@ -205,6 +205,9 @@ def phase_for_age_weeks(
     for phase in ordered:
         if phase["week_start"] <= weeks < phase["week_end"]:
             return phase
+    # Older than the last phase -> last phase; younger than the first -> first
+    # phase (so a puppy that hasn't reached the first week range still gets
+    # content, e.g. before the 7-week start).
     if weeks >= ordered[-1]["week_end"]:
         return ordered[-1]
-    return None
+    return ordered[0]
