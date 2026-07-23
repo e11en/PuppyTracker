@@ -12,5 +12,15 @@
       }
     },
     "single_instance_allowed": "Puppy Tracker is already configured."
+  },
+  "entity": {
+    "sensor": {
+      "age_weeks": { "name": "Age (weeks)" },
+      "phase": { "name": "Current phase" },
+      "next_pee": { "name": "Next potty break" }
+    },
+    "todo": {
+      "checklist": { "name": "Daily checklist" }
+    }
   }
 }

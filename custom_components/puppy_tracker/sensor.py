@@ -34,7 +34,7 @@ async def async_setup_entry(
 class _BasePuppySensor(CoordinatorEntity[PuppyCoordinator], SensorEntity):
     """Shared base for puppy sensors."""
 
-    _attr_has_entity_name = False
+    _attr_has_entity_name = True
 
     def __init__(self, coordinator: PuppyCoordinator, entry: ConfigEntry, name: str) -> None:
         super().__init__(coordinator)
@@ -42,18 +42,18 @@ class _BasePuppySensor(CoordinatorEntity[PuppyCoordinator], SensorEntity):
         self._puppy_name = name
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
-            name=f"Puppy Tracker ({name})",
+            name="Puppy Tracker",
             manufacturer="Puppy Tracker",
+            model=name,
         )
 
 
 class PuppyAgeSensor(_BasePuppySensor):
     _attr_icon = "mdi:calendar-clock"
-    _attr_native_unit_of_measurement = "weken"
+    _attr_translation_key = "age_weeks"
 
     def __init__(self, coordinator, entry, name) -> None:
         super().__init__(coordinator, entry, name)
-        self._attr_name = f"{name} leeftijd (weken)"
         self._attr_unique_id = f"{entry.entry_id}_age_weeks"
 
     @property
@@ -73,10 +73,10 @@ class PuppyAgeSensor(_BasePuppySensor):
 
 class PuppyPhaseSensor(_BasePuppySensor):
     _attr_icon = "mdi:dog"
+    _attr_translation_key = "phase"
 
     def __init__(self, coordinator, entry, name) -> None:
         super().__init__(coordinator, entry, name)
-        self._attr_name = f"{name} fase"
         self._attr_unique_id = f"{entry.entry_id}_phase"
 
     @property
@@ -102,10 +102,10 @@ class PuppyPhaseSensor(_BasePuppySensor):
 class PuppyNextPeeSensor(_BasePuppySensor):
     _attr_icon = "mdi:water"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_translation_key = "next_pee"
 
     def __init__(self, coordinator, entry, name) -> None:
         super().__init__(coordinator, entry, name)
-        self._attr_name = f"{name} volgende plaspauze"
         self._attr_unique_id = f"{entry.entry_id}_next_pee"
 
     @property

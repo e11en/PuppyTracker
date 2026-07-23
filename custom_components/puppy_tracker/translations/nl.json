@@ -12,5 +12,15 @@
       }
     },
     "single_instance_allowed": "Puppy Tracker is al geconfigureerd."
+  },
+  "entity": {
+    "sensor": {
+      "age_weeks": { "name": "Leeftijd (weken)" },
+      "phase": { "name": "Huidige fase" },
+      "next_pee": { "name": "Volgende plaspauze" }
+    },
+    "todo": {
+      "checklist": { "name": "Dagelijkse checklist" }
+    }
   }
 }

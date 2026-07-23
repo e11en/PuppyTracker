@@ -38,16 +38,18 @@ class DailyChecklistTodo(TodoListEntity):
 
     _attr_supported_features = TodoListEntityFeature.UPDATE_TODO_ITEM
     _attr_should_poll = True
+    _attr_has_entity_name = True
+    _attr_translation_key = "checklist"
 
     def __init__(self, db: PuppyTrackerDB, entry: ConfigEntry, name: str) -> None:
         self._db = db
         self._entry = entry
-        self._attr_name = f"{name} vandaag"
         self._attr_unique_id = f"{entry.entry_id}_daily_todo"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
-            name=f"Puppy Tracker ({name})",
+            name="Puppy Tracker",
             manufacturer="Puppy Tracker",
+            model=name,
         )
         self._items: list[tuple[str, str]] = []  # (uid, summary)
         self._done: set[str] = set()
