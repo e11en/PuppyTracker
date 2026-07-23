@@ -1075,6 +1075,7 @@ export class PuppyTrackerPanel extends LitElement {
   private _renderSocWeek(s: State, proto: Protocol, items: Step[], i: number, currentWeek: number | null, weeks: number) {
     const done = items.filter((st) => st.done_at).length;
     const isCurrent = currentWeek === i;
+    const ordered = [...items].sort((a, b) => a.day_offset - b.day_offset || a.id - b.id);
     return html`
       <div class="week-card ${isCurrent ? "current" : ""}">
         <div class="week-head">
@@ -1086,8 +1087,8 @@ export class PuppyTrackerPanel extends LitElement {
           <span class="week-progress">${done}/${items.length}</span>
         </div>
         <div class="week-items">
-          ${items.length === 0 ? html`<div class="muted small">Geen activiteiten deze week.</div>` : nothing}
-          ${items.map((st) => this._renderSocItem(s, proto, st, i, weeks))}
+          ${ordered.length === 0 ? html`<div class="muted small">Geen activiteiten deze week.</div>` : nothing}
+          ${ordered.map((st) => this._renderSocItem(s, proto, st, i, weeks))}
         </div>
         ${this._socAddWeek === i
           ? html`<div class="inline-form">

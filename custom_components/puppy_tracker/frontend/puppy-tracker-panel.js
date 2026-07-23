@@ -274,10 +274,10 @@ const Me = (i, e) => {
   let o, a = e === 2 ? "<svg>" : e === 3 ? "<math>" : "", r = D;
   for (let c = 0; c < t; c++) {
     const l = i[c];
-    let h, u, p = -1, b = 0;
-    for (; b < l.length && (r.lastIndex = b, u = r.exec(l), u !== null); ) b = r.lastIndex, r === D ? u[1] === "!--" ? r = ce : u[1] !== void 0 ? r = de : u[2] !== void 0 ? (ve.test(u[2]) && (o = RegExp("</" + u[2], "g")), r = w) : u[3] !== void 0 && (r = w) : r === w ? u[0] === ">" ? (r = o ?? D, p = -1) : u[1] === void 0 ? p = -2 : (p = r.lastIndex - u[2].length, h = u[1], r = u[3] === void 0 ? w : u[3] === '"' ? he : pe) : r === he || r === pe ? r = w : r === ce || r === de ? r = D : (r = w, o = void 0);
+    let p, h, u = -1, b = 0;
+    for (; b < l.length && (r.lastIndex = b, h = r.exec(l), h !== null); ) b = r.lastIndex, r === D ? h[1] === "!--" ? r = ce : h[1] !== void 0 ? r = de : h[2] !== void 0 ? (ve.test(h[2]) && (o = RegExp("</" + h[2], "g")), r = w) : h[3] !== void 0 && (r = w) : r === w ? h[0] === ">" ? (r = o ?? D, u = -1) : h[1] === void 0 ? u = -2 : (u = r.lastIndex - h[2].length, p = h[1], r = h[3] === void 0 ? w : h[3] === '"' ? he : pe) : r === he || r === pe ? r = w : r === ce || r === de ? r = D : (r = w, o = void 0);
     const y = r === w && i[c + 1].startsWith("/>") ? " " : "";
-    a += r === D ? l + Ce : p >= 0 ? (s.push(h), l.slice(0, p) + ge + l.slice(p) + k + y) : l + k + (p === -2 ? c : y);
+    a += r === D ? l + Ce : u >= 0 ? (s.push(p), l.slice(0, u) + ge + l.slice(u) + k + y) : l + k + (u === -2 ? c : y);
   }
   return [be(i, a + (i[t] || "<?>") + (e === 2 ? "</svg>" : e === 3 ? "</math>" : "")), s];
 };
@@ -286,29 +286,29 @@ class N {
     let o;
     this.parts = [];
     let a = 0, r = 0;
-    const c = e.length - 1, l = this.parts, [h, u] = Me(e, t);
-    if (this.el = N.createElement(h, s), S.currentNode = this.el.content, t === 2 || t === 3) {
-      const p = this.el.content.firstChild;
-      p.replaceWith(...p.childNodes);
+    const c = e.length - 1, l = this.parts, [p, h] = Me(e, t);
+    if (this.el = N.createElement(p, s), S.currentNode = this.el.content, t === 2 || t === 3) {
+      const u = this.el.content.firstChild;
+      u.replaceWith(...u.childNodes);
     }
     for (; (o = S.nextNode()) !== null && l.length < c; ) {
       if (o.nodeType === 1) {
-        if (o.hasAttributes()) for (const p of o.getAttributeNames()) if (p.endsWith(ge)) {
-          const b = u[r++], y = o.getAttribute(p).split(k), m = /([.?@])?(.*)/.exec(b);
-          l.push({ type: 1, index: a, name: m[2], strings: y, ctor: m[1] === "." ? Ne : m[1] === "?" ? je : m[1] === "@" ? He : V }), o.removeAttribute(p);
-        } else p.startsWith(k) && (l.push({ type: 6, index: a }), o.removeAttribute(p));
+        if (o.hasAttributes()) for (const u of o.getAttributeNames()) if (u.endsWith(ge)) {
+          const b = h[r++], y = o.getAttribute(u).split(k), m = /([.?@])?(.*)/.exec(b);
+          l.push({ type: 1, index: a, name: m[2], strings: y, ctor: m[1] === "." ? Ne : m[1] === "?" ? je : m[1] === "@" ? He : V }), o.removeAttribute(u);
+        } else u.startsWith(k) && (l.push({ type: 6, index: a }), o.removeAttribute(u));
         if (ve.test(o.tagName)) {
-          const p = o.textContent.split(k), b = p.length - 1;
+          const u = o.textContent.split(k), b = u.length - 1;
           if (b > 0) {
             o.textContent = q ? q.emptyScript : "";
-            for (let y = 0; y < b; y++) o.append(p[y], M()), S.nextNode(), l.push({ type: 2, index: ++a });
-            o.append(p[b], M());
+            for (let y = 0; y < b; y++) o.append(u[y], M()), S.nextNode(), l.push({ type: 2, index: ++a });
+            o.append(u[b], M());
           }
         }
       } else if (o.nodeType === 8) if (o.data === _e) l.push({ type: 2, index: a });
       else {
-        let p = -1;
-        for (; (p = o.data.indexOf(k, p + 1)) !== -1; ) l.push({ type: 7, index: a }), p += k.length - 1;
+        let u = -1;
+        for (; (u = o.data.indexOf(k, u + 1)) !== -1; ) l.push({ type: 7, index: a }), u += k.length - 1;
       }
       a++;
     }
@@ -340,8 +340,8 @@ class Ue {
     let a = S.nextNode(), r = 0, c = 0, l = s[0];
     for (; l !== void 0; ) {
       if (r === l.index) {
-        let h;
-        l.type === 2 ? h = new j(a, a.nextSibling, this, e) : l.type === 1 ? h = new l.ctor(a, l.name, l.strings, this, e) : l.type === 6 && (h = new Ie(a, this, e)), this._$AV.push(h), l = s[++c];
+        let p;
+        l.type === 2 ? p = new j(a, a.nextSibling, this, e) : l.type === 1 ? p = new l.ctor(a, l.name, l.strings, this, e) : l.type === 6 && (p = new Ie(a, this, e)), this._$AV.push(p), l = s[++c];
       }
       r !== l?.index && (a = S.nextNode(), r++);
     }
@@ -427,8 +427,8 @@ class V {
     if (a === void 0) e = P(this, e, t, 0), r = !U(e) || e !== this._$AH && e !== x, r && (this._$AH = e);
     else {
       const c = e;
-      let l, h;
-      for (e = a[0], l = 0; l < a.length - 1; l++) h = P(this, c[s + l], t, l), h === x && (h = this._$AH[l]), r ||= !U(h) || h !== this._$AH[l], h === d ? e = d : e !== d && (e += (h ?? "") + a[l + 1]), this._$AH[l] = h;
+      let l, p;
+      for (e = a[0], l = 0; l < a.length - 1; l++) p = P(this, c[s + l], t, l), p === x && (p = this._$AH[l]), r ||= !U(p) || p !== this._$AH[l], p === d ? e = d : e !== d && (e += (p ?? "") + a[l + 1]), this._$AH[l] = p;
     }
     r && !o && this.j(e);
   }
@@ -791,8 +791,8 @@ let f = class extends R {
     this._editStep = void 0;
     const l = { step_id: i.id, title: t, notes: o };
     r ? l.day_offset = parseInt(r.value, 10) : c !== null && (l.day_offset = c), a && (l.category = a.value);
-    const h = await this._ws("update_step", l);
-    h && this._merge({ protocols: h.protocols });
+    const p = await this._ws("update_step", l);
+    p && this._merge({ protocols: p.protocols });
   }
   _socCatOptions(i, e) {
     return Object.entries(i.socialization_categories).map(
@@ -872,13 +872,13 @@ let f = class extends R {
     s.onload = () => {
       const o = new Image();
       o.onload = () => {
-        const r = Math.min(1, 400 / Math.max(o.width, o.height)), c = Math.round(o.width * r), l = Math.round(o.height * r), h = document.createElement("canvas");
-        h.width = c, h.height = l;
-        const u = h.getContext("2d");
-        if (!u) return;
-        u.drawImage(o, 0, 0, c, l);
-        const p = h.toDataURL("image/jpeg", 0.82);
-        this._savePhoto(p);
+        const r = Math.min(1, 400 / Math.max(o.width, o.height)), c = Math.round(o.width * r), l = Math.round(o.height * r), p = document.createElement("canvas");
+        p.width = c, p.height = l;
+        const h = p.getContext("2d");
+        if (!h) return;
+        h.drawImage(o, 0, 0, c, l);
+        const u = p.toDataURL("image/jpeg", 0.82);
+        this._savePhoto(u);
       }, o.src = s.result;
     }, s.readAsDataURL(t), e.value = "";
   }
@@ -904,15 +904,15 @@ let f = class extends R {
   }
   /** Next pee = the first 'plassen' item in the active-phase schedule after now. */
   _nextPee(i) {
-    const t = (i.phase && i.schedules[i.phase.key] || []).filter((u) => u.type === "plassen");
+    const t = (i.phase && i.schedules[i.phase.key] || []).filter((h) => h.type === "plassen");
     if (!t.length) return null;
-    const s = /* @__PURE__ */ new Date(), o = L(s.getHours(), s.getMinutes()), a = t.map((u) => ({ p: u, mins: H(u.time) })).sort((u, p) => u.mins - p.mins);
-    let r = a.find((u) => u.mins > o), c = 0;
+    const s = /* @__PURE__ */ new Date(), o = L(s.getHours(), s.getMinutes()), a = t.map((h) => ({ p: h, mins: H(h.time) })).sort((h, u) => h.mins - u.mins);
+    let r = a.find((h) => h.mins > o), c = 0;
     r || (r = a[0], c = 1440);
     const l = new Date(s);
     l.setHours(F, 0, 0, 0), s.getHours() < F && l.setDate(l.getDate() - 1);
-    const h = new Date(l.getTime() + (r.mins + c) * 6e4);
-    return { time: r.p.time, at: h };
+    const p = new Date(l.getTime() + (r.mins + c) * 6e4);
+    return { time: r.p.time, at: p };
   }
   _restToday() {
     return this._state?.protocols.find((e) => e.seed_key === "socialization")?.steps.find((e) => this._isToday(e.effective_date) && e.category === "rust");
@@ -1047,11 +1047,11 @@ let f = class extends R {
     `;
   }
   _renderDaySchedule(i) {
-    const e = new Set(i.daily_checks), t = this._restToday(), s = this._todaySteps(), o = this._todayTasks(), a = 24 * C, r = /* @__PURE__ */ new Date(), c = L(r.getHours(), r.getMinutes()) / 60 * C, l = i.phase && i.schedules[i.phase.key] || [], h = 26, u = [...l].sort((m, _) => H(m.time) - H(_.time));
-    let p = -100;
-    const b = u.map((m) => {
+    const e = new Set(i.daily_checks), t = this._restToday(), s = this._todaySteps(), o = this._todayTasks(), a = 24 * C, r = /* @__PURE__ */ new Date(), c = L(r.getHours(), r.getMinutes()) / 60 * C, l = i.phase && i.schedules[i.phase.key] || [], p = 26, h = [...l].sort((m, _) => H(m.time) - H(_.time));
+    let u = -100;
+    const b = h.map((m) => {
       let _ = H(m.time) / 60 * C;
-      return _ < p + 2 && (_ = p + 2), p = _ + h, { it: m, top: _ };
+      return _ < u + 2 && (_ = u + 2), u = _ + p, { it: m, top: _ };
     }), y = Array.from({ length: 24 }, (m, _) => {
       const z = (F + _) % 24;
       return { hour: z, night: z >= 22 || z < 6, top: _ * C };
@@ -1387,7 +1387,7 @@ let f = class extends R {
     `;
   }
   _renderSocWeek(i, e, t, s, o, a) {
-    const r = t.filter((l) => l.done_at).length, c = o === s;
+    const r = t.filter((p) => p.done_at).length, c = o === s, l = [...t].sort((p, h) => p.day_offset - h.day_offset || p.id - h.id);
     return n`
       <div class="week-card ${c ? "current" : ""}">
         <div class="week-head">
@@ -1399,8 +1399,8 @@ let f = class extends R {
           <span class="week-progress">${r}/${t.length}</span>
         </div>
         <div class="week-items">
-          ${t.length === 0 ? n`<div class="muted small">Geen activiteiten deze week.</div>` : d}
-          ${t.map((l) => this._renderSocItem(i, e, l, s, a))}
+          ${l.length === 0 ? n`<div class="muted small">Geen activiteiten deze week.</div>` : d}
+          ${l.map((p) => this._renderSocItem(i, e, p, s, a))}
         </div>
         ${this._socAddWeek === s ? n`<div class="inline-form">
               <label class="fld grow">Activiteit<input id="sa-title" type="text" placeholder="bv. Trein horen" /></label>
