@@ -5,8 +5,7 @@ developmental **phases**, a 24-hour **day schedule**, a **socialization program*
 and shiftable **care schedules** — defer one step and the rest of that schedule
 cascades along. It adds its own sidebar panel; no add-on, no separate backend.
 
-Built for Beer, a Bernese Mountain Dog. Interface and default content available
-in **Dutch and English**.
+Interface and default content available in **Dutch and English**.
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=e11en&repository=PuppyTracker&category=integration)
 

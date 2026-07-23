@@ -98,6 +98,17 @@ ha core check && ha core restart
 
 (Adjust to your setup; HACS install is the normal path for end users.)
 
+## Branding / integration icon
+
+Home Assistant shows an integration's logo in the integrations list from the
+central **[home-assistant/brands](https://github.com/home-assistant/brands)**
+repo (`brands.home-assistant.io/<domain>/icon.png`). There is **no local
+fallback**, so a custom integration shows "icon not available" until its icon is
+added to brands. The ready-made assets live in [`brand/`](brand/) (icon.png 256²,
+icon@2x.png 512², logo variants). To publish: open a PR to home-assistant/brands
+adding them under `custom_integrations/puppy_tracker/`. (The sidebar panel icon
+is separate and already set to `mdi:dog`.)
+
 ## Conventions
 
 - Code and comments in English; default UI content is Dutch with English seed.
