@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "puppy_tracker"
-VERSION = "0.1.0"
+VERSION = "1.0.0"
 
 DB_FILENAME = "puppy_tracker.db"
 
