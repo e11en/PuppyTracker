@@ -313,3 +313,65 @@ async def set_daily_check(
 async def clear_daily_checks(conn: aiosqlite.Connection, date: str) -> None:
     await conn.execute("DELETE FROM daily_checks WHERE date=?", (date,))
     await conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# Per-phase daily schedule
+# ---------------------------------------------------------------------------
+
+async def get_schedule_items(conn: aiosqlite.Connection, phase_key: str) -> list[dict[str, Any]]:
+    cur = await conn.execute(
+        "SELECT * FROM schedule_items WHERE phase_key=? ORDER BY time, seq, id", (phase_key,)
+    )
+    return _rows(await cur.fetchall())
+
+
+async def get_all_schedules(conn: aiosqlite.Connection) -> dict[str, list[dict[str, Any]]]:
+    cur = await conn.execute("SELECT * FROM schedule_items ORDER BY phase_key, time, seq, id")
+    out: dict[str, list[dict[str, Any]]] = {}
+    for row in await cur.fetchall():
+        d = dict(row)
+        out.setdefault(d["phase_key"], []).append(d)
+    return out
+
+
+async def count_schedule_items(conn: aiosqlite.Connection, phase_key: str) -> int:
+    cur = await conn.execute(
+        "SELECT COUNT(*) FROM schedule_items WHERE phase_key=?", (phase_key,)
+    )
+    row = await cur.fetchone()
+    return row[0] if row else 0
+
+
+async def add_schedule_item(
+    conn: aiosqlite.Connection,
+    phase_key: str,
+    time: str,
+    type: str,
+    label: str,
+    notes: str = "",
+    seq: int = 0,
+) -> int:
+    cur = await conn.execute(
+        "INSERT INTO schedule_items (phase_key, seq, time, type, label, notes) VALUES (?, ?, ?, ?, ?, ?)",
+        (phase_key, seq, time, type, label, notes),
+    )
+    await conn.commit()
+    return cur.lastrowid
+
+
+async def update_schedule_item(conn: aiosqlite.Connection, item_id: int, **fields: Any) -> None:
+    allowed = {"time", "type", "label", "notes", "seq", "phase_key"}
+    sets = {k: v for k, v in fields.items() if k in allowed}
+    if not sets:
+        return
+    cols = ", ".join(f"{k}=?" for k in sets)
+    await conn.execute(
+        f"UPDATE schedule_items SET {cols} WHERE id=?", (*sets.values(), item_id)
+    )
+    await conn.commit()
+
+
+async def remove_schedule_item(conn: aiosqlite.Connection, item_id: int) -> None:
+    await conn.execute("DELETE FROM schedule_items WHERE id=?", (item_id,))
+    await conn.commit()

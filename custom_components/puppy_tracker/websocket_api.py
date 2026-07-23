@@ -31,6 +31,9 @@ def async_register_commands(hass: HomeAssistant) -> None:
         ws_snooze_pee,
         ws_toggle_daily_check,
         ws_clear_daily_checks,
+        ws_add_schedule_item,
+        ws_update_schedule_item,
+        ws_remove_schedule_item,
         ws_add_task,
         ws_update_task,
         ws_remove_task,
@@ -82,7 +85,7 @@ async def _full_state(db: PuppyTrackerDB, coordinator: PuppyCoordinator) -> dict
         "in_fear_period": data.get("in_fear_period"),
         "next_pee": next_pee_out,
         "phases": PHASES,
-        "daily_schedule": content.DAILY_SCHEDULE,
+        "schedules": await queries.get_all_schedules(db.conn),
         "schedule_types": content.SCHEDULE_TYPES,
         "night": {"start": content.NIGHT_START, "end": content.NIGHT_END},
         "socialization_categories": content.SOCIALIZATION_CATEGORIES,
@@ -212,6 +215,71 @@ async def ws_clear_daily_checks(hass, connection, msg):
     date = msg.get("date", _today())
     await queries.clear_daily_checks(db.conn, date)
     connection.send_result(msg["id"], {"daily_checks": []})
+
+
+# --- Per-phase day schedule ---------------------------------------------
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "puppy_tracker/add_schedule_item",
+        vol.Required("phase_key"): str,
+        vol.Required("time"): str,
+        vol.Required("label"): str,
+        vol.Optional("item_type"): str,
+        vol.Optional("notes"): str,
+    }
+)
+@websocket_api.async_response
+async def ws_add_schedule_item(hass, connection, msg):
+    db, _ = _entry(hass)
+    await queries.add_schedule_item(
+        db.conn,
+        phase_key=msg["phase_key"],
+        time=msg["time"],
+        type=msg.get("item_type", "rust"),
+        label=msg["label"],
+        notes=msg.get("notes", ""),
+    )
+    connection.send_result(msg["id"], {"schedules": await queries.get_all_schedules(db.conn)})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "puppy_tracker/update_schedule_item",
+        vol.Required("item_id"): int,
+        vol.Optional("time"): str,
+        vol.Optional("item_type"): str,
+        vol.Optional("label"): str,
+        vol.Optional("notes"): str,
+    }
+)
+@websocket_api.async_response
+async def ws_update_schedule_item(hass, connection, msg):
+    db, _ = _entry(hass)
+    fields: dict[str, Any] = {}
+    if "time" in msg:
+        fields["time"] = msg["time"]
+    if "item_type" in msg:
+        fields["type"] = msg["item_type"]
+    if "label" in msg:
+        fields["label"] = msg["label"]
+    if "notes" in msg:
+        fields["notes"] = msg["notes"]
+    await queries.update_schedule_item(db.conn, msg["item_id"], **fields)
+    connection.send_result(msg["id"], {"schedules": await queries.get_all_schedules(db.conn)})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "puppy_tracker/remove_schedule_item",
+        vol.Required("item_id"): int,
+    }
+)
+@websocket_api.async_response
+async def ws_remove_schedule_item(hass, connection, msg):
+    db, _ = _entry(hass)
+    await queries.remove_schedule_item(db.conn, msg["item_id"])
+    connection.send_result(msg["id"], {"schedules": await queries.get_all_schedules(db.conn)})
 
 
 # --- Tasks ---------------------------------------------------------------

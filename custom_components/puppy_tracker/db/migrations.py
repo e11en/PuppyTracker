@@ -85,4 +85,20 @@ MIGRATIONS: list[tuple[int, str]] = [
         );
         """,
     ),
+    (
+        3,
+        """
+        -- Per-phase daily schedule (24h). Seeded from defaults, editable in the UI.
+        CREATE TABLE IF NOT EXISTS schedule_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            phase_key TEXT NOT NULL,
+            seq INTEGER NOT NULL DEFAULT 0,
+            time TEXT NOT NULL,          -- HH:MM
+            type TEXT NOT NULL DEFAULT 'rust',
+            label TEXT NOT NULL,
+            notes TEXT DEFAULT ''
+        );
+        CREATE INDEX IF NOT EXISTS idx_sched_phase ON schedule_items(phase_key, time);
+        """,
+    ),
 ]

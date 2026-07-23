@@ -54,11 +54,13 @@ interface Phase {
 }
 
 interface ScheduleItem {
-  key: string;
+  id: number;
+  phase_key: string;
+  seq: number;
   time: string;
   type: string;
   label: string;
-  note: string;
+  notes: string;
 }
 
 type CatMap = Record<string, { label: string; color: string; icon: string }>;
@@ -74,7 +76,7 @@ interface State {
   in_fear_period: boolean;
   next_pee: { at: string; seconds: number; interval_hours: number } | null;
   phases: Phase[];
-  daily_schedule: ScheduleItem[];
+  schedules: Record<string, ScheduleItem[]>;
   schedule_types: CatMap;
   night: { start: string; end: string };
   socialization_categories: CatMap;
@@ -95,6 +97,7 @@ const TABS: { id: Tab; label: string }[] = [
 
 const NL_DATE = new Intl.DateTimeFormat("nl-NL", { weekday: "short", day: "numeric", month: "short" });
 const NL_WEEKDAY = new Intl.DateTimeFormat("nl-NL", { weekday: "long", day: "numeric", month: "short" });
+const NL_DAY = new Intl.DateTimeFormat("nl-NL", { weekday: "short", day: "numeric" });
 
 // Day-view timeline geometry. The day runs from DAY_START_HOUR for 24h.
 const DAY_START_HOUR = 7;
@@ -125,6 +128,8 @@ export class PuppyTrackerPanel extends LitElement {
   @state() private _stepForm?: number;
   @state() private _editStep?: number;
   @state() private _editProto?: number;
+  @state() private _schedForm?: string; // phase key we're adding an item to
+  @state() private _editSched?: number; // schedule item id being edited
   @state() private _confirm?: { kind: "task" | "protocol" | "step"; id: number };
 
   private _timer?: number;
@@ -336,6 +341,43 @@ export class PuppyTrackerPanel extends LitElement {
     if (r) this._merge({ protocols: r.protocols });
   }
 
+  private async _submitSchedItem(phaseKey: string): Promise<void> {
+    const q = (id: string) => (this.renderRoot.querySelector(id) as HTMLInputElement)?.value ?? "";
+    const time = q("#sc-time");
+    const label = q("#sc-label").trim();
+    if (!time || !label) return;
+    this._schedForm = undefined;
+    const r = await this._ws<{ schedules: Record<string, ScheduleItem[]> }>("add_schedule_item", {
+      phase_key: phaseKey,
+      time,
+      label,
+      item_type: q("#sc-type") || "rust",
+      notes: q("#sc-notes"),
+    });
+    if (r) this._merge({ schedules: r.schedules });
+  }
+
+  private async _submitSchedEdit(item: ScheduleItem): Promise<void> {
+    const q = (id: string) => (this.renderRoot.querySelector(id) as HTMLInputElement)?.value ?? "";
+    const label = q("#se-label").trim();
+    const time = q("#se-time");
+    if (!time || !label) return;
+    this._editSched = undefined;
+    const r = await this._ws<{ schedules: Record<string, ScheduleItem[]> }>("update_schedule_item", {
+      item_id: item.id,
+      time,
+      label,
+      item_type: q("#se-type"),
+      notes: q("#se-notes"),
+    });
+    if (r) this._merge({ schedules: r.schedules });
+  }
+
+  private async _removeSchedItem(id: number): Promise<void> {
+    const r = await this._ws<{ schedules: Record<string, ScheduleItem[]> }>("remove_schedule_item", { item_id: id });
+    if (r) this._merge({ schedules: r.schedules });
+  }
+
   private async _saveConfig(): Promise<void> {
     const q = (id: string) => (this.renderRoot.querySelector(id) as HTMLInputElement)?.value ?? "";
     // photo_url is omitted so the backend keeps the existing photo.
@@ -384,6 +426,11 @@ export class PuppyTrackerPanel extends LitElement {
   private _fmt(date: string | null): string {
     if (!date) return "";
     return NL_DATE.format(new Date(date + "T00:00:00"));
+  }
+
+  private _dayLabel(date: string | null): string {
+    if (!date) return "";
+    return NL_DAY.format(new Date(date + "T00:00:00"));
   }
 
   private _isToday(d: string | null): boolean {
@@ -576,9 +623,12 @@ export class PuppyTrackerPanel extends LitElement {
     const now = new Date();
     const nowTop = (minsFromStart(now.getHours(), now.getMinutes()) / 60) * HOUR_H;
 
+    // Schedule for the active phase (falls back to empty if no phase yet).
+    const schedule = (s.phase && s.schedules[s.phase.key]) || [];
+
     // Place items by exact time, pushing down to avoid overlap when clustered.
     const ITEM_H = 26;
-    const sorted = [...s.daily_schedule].sort((a, b) => timeToMins(a.time) - timeToMins(b.time));
+    const sorted = [...schedule].sort((a, b) => timeToMins(a.time) - timeToMins(b.time));
     let lastBottom = -100;
     const placed = sorted.map((it) => {
       let top = (timeToMins(it.time) / 60) * HOUR_H;
@@ -610,13 +660,14 @@ export class PuppyTrackerPanel extends LitElement {
             )}
             ${placed.map(({ it, top }) => {
               const t = s.schedule_types[it.type];
-              const checked = done.has(it.key);
+              const key = String(it.id);
+              const checked = done.has(key);
               return html`
-                <div class="tl-item ${checked ? "checked" : ""}" style="top:${top}px;--rc:${t?.color ?? "#888"}" title=${it.note || it.label}>
+                <div class="tl-item ${checked ? "checked" : ""}" style="top:${top}px;--rc:${t?.color ?? "#888"}" title=${it.notes || it.label}>
                   <span class="tl-time">${it.time}</span>
                   <span class="tl-label">${it.label}</span>
                   <input type="checkbox" .checked=${checked}
-                    @change=${(e: Event) => this._toggleDaily(it.key, (e.target as HTMLInputElement).checked)} />
+                    @change=${(e: Event) => this._toggleDaily(key, (e.target as HTMLInputElement).checked)} />
                 </div>
               `;
             })}
@@ -711,11 +762,64 @@ export class PuppyTrackerPanel extends LitElement {
                     `,
                   )}
                 </div>
+                ${this._renderPhaseSchedule(s, p)}
               </div>
             </details>
           `;
         })}
       </section>
+    `;
+  }
+
+  private _typeOptions(s: State, selected: string) {
+    return Object.entries(s.schedule_types).map(
+      ([key, c]) => html`<option value=${key} ?selected=${key === selected}>${c.label}</option>`,
+    );
+  }
+
+  private _renderPhaseSchedule(s: State, p: Phase) {
+    const items = [...(s.schedules[p.key] ?? [])].sort((a, b) => (a.time < b.time ? -1 : 1));
+    return html`
+      <div class="phase-sched">
+        <div class="ps-head">
+          <h4><ha-icon icon="mdi:clock-outline"></ha-icon> Dagschema voor deze fase</h4>
+          <button class="link" @click=${() => (this._schedForm = this._schedForm === p.key ? undefined : p.key)}>+ Item</button>
+        </div>
+        ${this._schedForm === p.key
+          ? html`<div class="inline-form">
+              <label class="fld">Tijd<input id="sc-time" type="time" value="12:00" /></label>
+              <label class="fld grow">Label<input id="sc-label" type="text" placeholder="bv. Plaspauze" /></label>
+              <label class="fld">Type<select id="sc-type">${this._typeOptions(s, "rust")}</select></label>
+              <label class="fld grow">Notitie<input id="sc-notes" type="text" placeholder="uitvoering (optioneel)" /></label>
+              <button class="primary" @click=${() => this._submitSchedItem(p.key)}>Toevoegen</button>
+              <button class="link" @click=${() => (this._schedForm = undefined)}>Annuleer</button>
+            </div>`
+          : nothing}
+        <div class="ps-list">
+          ${items.length === 0 ? html`<div class="muted small">Nog geen items voor deze fase.</div>` : nothing}
+          ${items.map((it) =>
+            this._editSched === it.id
+              ? html`<div class="ps-item editing">
+                  <input id="se-time" type="time" .value=${it.time} />
+                  <input id="se-label" type="text" .value=${it.label} />
+                  <select id="se-type">${this._typeOptions(s, it.type)}</select>
+                  <input id="se-notes" type="text" .value=${it.notes} placeholder="notitie" />
+                  <button class="primary" @click=${() => this._submitSchedEdit(it)}>Opslaan</button>
+                  <button class="link" @click=${() => (this._editSched = undefined)}>Annuleer</button>
+                </div>`
+              : html`<div class="ps-item">
+                  <span class="ps-time">${it.time}</span>
+                  <span class="cat-dot" style="background:${s.schedule_types[it.type]?.color ?? "#888"}" title=${s.schedule_types[it.type]?.label ?? ""}></span>
+                  <span class="ps-main">
+                    <span>${it.label}</span>
+                    ${it.notes ? html`<span class="ps-note">${it.notes}</span>` : nothing}
+                  </span>
+                  <button class="link" @click=${() => (this._editSched = it.id)}>Bewerken</button>
+                  <button class="link danger" title="Verwijderen" @click=${() => this._removeSchedItem(it.id)}>×</button>
+                </div>`,
+          )}
+        </div>
+      </div>
     `;
   }
 
@@ -809,7 +913,14 @@ export class PuppyTrackerPanel extends LitElement {
           <input id="es-title" type="text" .value=${st.title} placeholder="activiteit" />
           <input id="es-notes" type="text" .value=${st.notes} placeholder="notitie (optioneel)" />
           <input id="es-date" type="hidden" .value=${st.effective_date ?? ""} />
-          <div class="soc-item-actions">
+          <div class="soc-edit-row">
+            <span class="wk-move">
+              Week:
+              <button class="iconbtn" title="Vorige week" ?disabled=${weekIndex === 0} @click=${() => this._moveStepWeek(st, -1)}>←</button>
+              <button class="iconbtn" title="Volgende week" ?disabled=${weekIndex === weeks - 1} @click=${() => this._moveStepWeek(st, 1)}>→</button>
+            </span>
+            <span class="spacer"></span>
+            <button class="link danger" @click=${() => this._removeStep(st.id)}>Verwijderen</button>
             <button class="primary" @click=${() => this._submitStepEdit(st, proto)}>Opslaan</button>
             <button class="link" @click=${() => (this._editStep = undefined)}>Annuleer</button>
           </div>
@@ -819,17 +930,13 @@ export class PuppyTrackerPanel extends LitElement {
     return html`
       <div class="soc-item ${st.done_at ? "done" : ""}" style="--rc:${cat?.color ?? "#888"}">
         <input type="checkbox" .checked=${!!st.done_at} @change=${() => this._toggleStep(st)} />
+        <span class="day-chip" title=${this._fmt(st.effective_date)}>${this._dayLabel(st.effective_date)}</span>
         <span class="cat-dot" style="background:${cat?.color ?? "#888"}" title=${cat?.label ?? ""}></span>
         <span class="soc-item-main">
           <span class="soc-item-title">${st.title}</span>
           ${st.notes ? html`<span class="soc-item-note">${st.notes}</span>` : nothing}
         </span>
-        <span class="soc-item-actions">
-          <button class="iconbtn" title="Vorige week" ?disabled=${weekIndex === 0} @click=${() => this._moveStepWeek(st, -1)}>←</button>
-          <button class="iconbtn" title="Volgende week" ?disabled=${weekIndex === weeks - 1} @click=${() => this._moveStepWeek(st, 1)}>→</button>
-          <button class="link" @click=${() => (this._editStep = st.id)}>Bewerken</button>
-          ${this._stepDelete(st)}
-        </span>
+        <button class="link edit-btn" @click=${() => (this._editStep = st.id)}>Bewerken</button>
       </div>
     `;
   }
@@ -1083,6 +1190,20 @@ export class PuppyTrackerPanel extends LitElement {
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
     .info-card { background: color-mix(in srgb, var(--primary-text-color) 5%, transparent); border-radius: 10px; padding: 10px 12px; }
     .info-card ul { margin: 0; padding-left: 16px; font-size: .82rem; }
+    .phase-sched { margin-top: 14px; border-top: 1px solid var(--divider-color, #eee); padding-top: 10px; }
+    .ps-head { display: flex; align-items: center; justify-content: space-between; }
+    .ps-head h4 { margin: 0; }
+    .ps-list { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+    .ps-item { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 8px; }
+    .ps-item:hover { background: color-mix(in srgb, var(--primary-text-color) 5%, transparent); }
+    .ps-time { font-variant-numeric: tabular-nums; width: 44px; font-size: .82rem; opacity: .85; flex: 0 0 auto; }
+    .ps-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+    .ps-note { font-size: .74rem; opacity: .65; }
+    .ps-item.editing { flex-wrap: wrap; }
+    .ps-item.editing input[type="text"] { flex: 1 1 140px; }
+    .ps-item select, .inline-form select, .ps-item input, .inline-form .fld select {
+      padding: 6px; border-radius: 6px; border: 1px solid var(--divider-color, #ccc); background: var(--card-background-color); color: inherit; font: inherit;
+    }
 
     /* Socialization */
     .legend { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0 10px; font-size: .78rem; }
@@ -1112,6 +1233,11 @@ export class PuppyTrackerPanel extends LitElement {
     .soc-item-title { font-size: .88rem; }
     .soc-item-note { font-size: .74rem; opacity: .65; }
     .soc-item-actions { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+    .day-chip { font-size: .72rem; opacity: .7; flex: 0 0 auto; min-width: 40px; font-variant-numeric: tabular-nums; }
+    .soc-item .edit-btn { flex: 0 0 auto; }
+    .soc-edit-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; width: 100%; }
+    .soc-edit-row .spacer { flex: 1; }
+    .wk-move { display: inline-flex; align-items: center; gap: 4px; font-size: .78rem; opacity: .8; }
     .iconbtn { background: transparent; border: 1px solid var(--divider-color, #ccc); border-radius: 6px; width: 24px; height: 24px; padding: 0; cursor: pointer; color: inherit; line-height: 1; }
     .iconbtn:disabled { opacity: .3; cursor: default; }
     .soc-item.editing { flex-wrap: wrap; gap: 6px; }

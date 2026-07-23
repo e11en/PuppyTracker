@@ -15,6 +15,7 @@ from . import content
 from .const import ANCHOR_HOMECOMING, CHECK_MILESTONE
 from .db import queries
 from .logic import resolve_anchor_date
+from .phases import PHASES
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,6 +44,26 @@ async def async_seed_defaults(conn: aiosqlite.Connection) -> None:
 
     await _seed_socialization(conn, home_date)
     await _seed_bench(conn, home_date)
+    await _seed_schedules(conn)
+
+
+async def _seed_schedules(conn: aiosqlite.Connection) -> None:
+    """Seed each phase's daily schedule from the default template if empty."""
+    for phase in PHASES:
+        key = phase["key"]
+        if await queries.count_schedule_items(conn, key) > 0:
+            continue
+        for i, it in enumerate(content.DAILY_SCHEDULE):
+            await queries.add_schedule_item(
+                conn,
+                phase_key=key,
+                time=it["time"],
+                type=it["type"],
+                label=it["label"],
+                notes=it.get("note", ""),
+                seq=i,
+            )
+    _LOGGER.info("Seeded per-phase day schedules")
 
 
 async def _seed_socialization(conn: aiosqlite.Connection, home_date: str | None) -> None:
