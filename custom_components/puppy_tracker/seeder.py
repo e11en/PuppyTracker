@@ -100,8 +100,8 @@ async def _seed_bench(conn: aiosqlite.Connection, lang: str, home_date: str | No
     existing = await queries.get_protocol_by_seed(conn, SEED_BENCH)
     if existing is None:
         name = "Bench verplaatsen" if lang == "nl" else "Move the crate"
-        notes = ("Elke nacht iets verder van bed. Uitstellen schuift de rest mee."
-                 if lang == "nl" else "A bit further from the bed each night. Deferring shifts the rest.")
+        notes = ("Elke 2 nachten iets verder van bed. Uitstellen schuift de rest mee."
+                 if lang == "nl" else "A bit further from the bed every 2 nights. Deferring shifts the rest.")
         first_note = ("Geen licht, geen spel, geen praten." if lang == "nl" else "No light, no play, no talking.")
         pid = await queries.add_protocol(
             conn, name=name, category="nacht", anchor=ANCHOR_HOMECOMING,
@@ -109,7 +109,7 @@ async def _seed_bench(conn: aiosqlite.Connection, lang: str, home_date: str | No
         )
         for i, (nl, en) in enumerate(_BENCH_STEPS):
             await queries.add_step(
-                conn, protocol_id=pid, seq=i, day_offset=i,
+                conn, protocol_id=pid, seq=i, day_offset=i * 2,  # move every 2 days
                 title=(nl if lang == "nl" else en), category="nacht",
                 notes=first_note if i == 0 else "", check_mode=CHECK_MILESTONE,
             )
