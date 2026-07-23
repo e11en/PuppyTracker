@@ -95,13 +95,12 @@ interface State {
   tasks: Task[];
 }
 
-type Tab = "vandaag" | "fases" | "socialisatie" | "schemas" | "config";
+type Tab = "vandaag" | "fases" | "socialisatie" | "config";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "vandaag", label: "Vandaag" },
   { id: "fases", label: "Fases" },
   { id: "socialisatie", label: "Socialisatie" },
-  { id: "schemas", label: "Schema's" },
   { id: "config", label: "Configuratie" },
 ];
 
@@ -615,8 +614,6 @@ export class PuppyTrackerPanel extends LitElement {
         return this._renderPhases(s);
       case "socialisatie":
         return this._renderSocialization(s);
-      case "schemas":
-        return this._renderSchedules(s);
       case "config":
         return this._renderConfig(s);
       default:
@@ -1129,7 +1126,6 @@ export class PuppyTrackerPanel extends LitElement {
     }
     return html`
       <div class="soc-item ${st.done_at ? "done" : ""}" style="--rc:${cat?.color ?? "#888"}">
-        <input type="checkbox" .checked=${!!st.done_at} @change=${() => this._toggleStep(st)} />
         <span class="day-chip" title=${this._fmt(st.effective_date)}>${this._dayLabel(st.effective_date)}</span>
         <span class="cat-dot" style="background:${cat?.color ?? "#888"}" title=${cat?.label ?? ""}></span>
         <span class="soc-item-main">
@@ -1178,7 +1174,6 @@ export class PuppyTrackerPanel extends LitElement {
               ${s.tasks.map(
                 (t) => html`
                   <div class="task ${t.done_at ? "done" : ""}">
-                    <input type="checkbox" .checked=${!!t.done_at} @change=${() => this._toggleTask(t)} />
                     <span class="task-main">
                       <span class="task-title">${t.title}</span>
                       ${t.date ? html`<span class="task-date">${this._fmt(t.date)}</span>` : nothing}
@@ -1242,7 +1237,6 @@ export class PuppyTrackerPanel extends LitElement {
                       `
                     : html`
                         <div class="step ${this._isToday(st.effective_date) ? "today" : ""} ${st.done_at ? "done" : ""}">
-                          <input type="checkbox" .checked=${!!st.done_at} @change=${() => this._toggleStep(st)} />
                           <span class="step-date">${this._fmt(st.effective_date)}</span>
                           <span class="step-title">${st.title}</span>
                           <button class="icon-link" title="Bewerken" @click=${() => (this._editStep = st.id)}><ha-icon icon="mdi:pencil"></ha-icon></button>
@@ -1287,6 +1281,7 @@ export class PuppyTrackerPanel extends LitElement {
           <p class="muted">Bij het wijzigen van de thuiskomstdatum schuift het socialisatie- en benchschema automatisch mee.</p>
         </div>
       </section>
+      ${this._renderSchedules(s)}
     `;
   }
 
