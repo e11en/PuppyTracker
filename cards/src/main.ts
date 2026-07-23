@@ -826,6 +826,11 @@ export class PuppyTrackerPanel extends LitElement {
           <h2><ha-icon icon="mdi:clock-outline"></ha-icon> ${this.t("daySchedule")}</h2>
         </div>
         ${rest ? html`<div class="rest-banner">💥 ${this.t("restDay")} — ${rest.title}</div>` : nothing}
+        <div class="legend tl-legend">
+          ${Object.entries(s.schedule_types).map(
+            ([, t]) => html`<span class="tag"><span class="dot" style="background:${t.color}"></span>${t.label}</span>`,
+          )}
+        </div>
         <div class="timeline-scroll">
           <div class="timeline" style="height:${totalH}px">
             ${hours.map(
@@ -917,8 +922,9 @@ export class PuppyTrackerPanel extends LitElement {
 
   private _renderPhases(s: State) {
     return html`
-      <section>
-        <h2>${this.t("phases")}</h2>
+      <details class="config-group">
+        <summary><span class="cg-title"><ha-icon class="chev" icon="mdi:chevron-right"></ha-icon>${this.t("phases")}</span></summary>
+        <div class="group-body">
         ${s.phases.map((p) => {
           const active = s.phase?.key === p.key;
           return html`
@@ -953,7 +959,8 @@ export class PuppyTrackerPanel extends LitElement {
             </details>
           `;
         })}
-      </section>
+        </div>
+      </details>
     `;
   }
 
@@ -1171,10 +1178,9 @@ export class PuppyTrackerPanel extends LitElement {
     }
 
     return html`
-      <section>
-        <div class="sec-head">
-          <h2>${this.t("socialization")} <small class="muted">${this.t("socializationSub")}</small></h2>
-        </div>
+      <details class="config-group">
+        <summary><span class="cg-title"><ha-icon class="chev" icon="mdi:chevron-right"></ha-icon>${this.t("socialization")} <small class="muted">${this.t("socializationSub")}</small></span></summary>
+        <div class="group-body">
         <div class="legend">
           ${Object.entries(s.socialization_categories).map(
             ([, c]) => html`<span class="tag"><span class="dot" style="background:${c.color}"></span>${c.label}</span>`,
@@ -1183,7 +1189,8 @@ export class PuppyTrackerPanel extends LitElement {
         <div class="weeks">
           ${byWeek.map((items, i) => this._renderSocWeek(s, proto, items, i, currentWeek, WEEKS))}
         </div>
-      </section>
+        </div>
+      </details>
     `;
   }
 
@@ -1262,13 +1269,12 @@ export class PuppyTrackerPanel extends LitElement {
   private _renderSchedules(s: State) {
     const protos = s.protocols.filter((p) => p.seed_key !== "socialization");
     return html`
-      <section>
-        <div class="sec-head">
-          <h2>${this.t("schedulesTasks")}</h2>
-          <span>
-            <button class="ghost" @click=${() => { this._taskForm = !this._taskForm; this._protoForm = false; }}>${this.t("addTask")}</button>
-            <button class="ghost" @click=${() => { this._protoForm = !this._protoForm; this._taskForm = false; }}>${this.t("addSchema")}</button>
-          </span>
+      <details class="config-group">
+        <summary><span class="cg-title"><ha-icon class="chev" icon="mdi:chevron-right"></ha-icon>${this.t("schedulesTasks")}</span></summary>
+        <div class="group-body">
+        <div class="sched-actions">
+          <button class="ghost" @click=${() => { this._taskForm = !this._taskForm; this._protoForm = false; }}>${this.t("addTask")}</button>
+          <button class="ghost" @click=${() => { this._protoForm = !this._protoForm; this._taskForm = false; }}>${this.t("addSchema")}</button>
         </div>
 
         ${this._taskForm
@@ -1369,7 +1375,8 @@ export class PuppyTrackerPanel extends LitElement {
             </div>
           `,
         )}
-      </section>
+        </div>
+      </details>
     `;
   }
 
@@ -1378,8 +1385,9 @@ export class PuppyTrackerPanel extends LitElement {
   private _renderConfig(s: State) {
     const p = s.puppy;
     return html`
-      <section>
-        <h2>${this.t("config")}</h2>
+      <details class="config-group" open>
+        <summary><span class="cg-title"><ha-icon class="chev" icon="mdi:chevron-right"></ha-icon>${this.t("puppy")}</span></summary>
+        <div class="group-body">
         <div class="settings">
           <label>${this.t("language")}
             <select @change=${(e: Event) => this._setLanguage((e.target as HTMLSelectElement).value as Lang)}>
@@ -1414,7 +1422,8 @@ export class PuppyTrackerPanel extends LitElement {
             <div class="muted small">${this.t("reloadDefaultsHint")}</div>
           </div>
         </div>
-      </section>
+        </div>
+      </details>
       ${this._renderPhases(s)}
       ${this._renderSocialization(s)}
       ${this._renderSchedules(s)}
@@ -1424,6 +1433,22 @@ export class PuppyTrackerPanel extends LitElement {
   static styles = css`
     :host { display: block; color: var(--primary-text-color); background: var(--primary-background-color); min-height: 100vh; }
     .app { display: flex; flex-direction: column; min-height: 100vh; }
+
+    /* Accessibility */
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible,
+    summary:focus-visible, [tabindex]:focus-visible {
+      outline: 2px solid var(--primary-color); outline-offset: 2px; border-radius: 6px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+    }
+    .tl-legend { margin-bottom: 8px; }
+    /* Narrow screens: stack the hero and the two Today columns */
+    @media (max-width: 600px) {
+      .hero-top { flex-direction: column; }
+      .hero-photo { width: 100%; height: 160px; }
+      .cols { grid-template-columns: 1fr; }
+    }
 
     .topbar { display: flex; align-items: center; gap: 8px; height: 56px; padding: 0 12px; background: var(--app-header-background-color, var(--primary-color)); color: var(--app-header-text-color, var(--text-primary-color, #fff)); }
     .topbar .title { font-size: 1.2rem; font-weight: 500; }
@@ -1439,6 +1464,17 @@ export class PuppyTrackerPanel extends LitElement {
     .muted { opacity: .6; }
 
     section { background: var(--card-background-color); border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; box-shadow: var(--ha-card-box-shadow, 0 2px 6px rgba(0,0,0,.1)); }
+
+    /* Collapsible config groups */
+    .config-group { background: var(--card-background-color); border-radius: 14px; margin-bottom: 14px; box-shadow: var(--ha-card-box-shadow, 0 2px 6px rgba(0,0,0,.1)); overflow: hidden; }
+    .config-group > summary { display: flex; align-items: center; padding: 14px 16px; cursor: pointer; font-size: 1.05rem; font-weight: 600; list-style: none; }
+    .config-group > summary::-webkit-details-marker { display: none; }
+    .config-group > summary:hover { background: color-mix(in srgb, var(--primary-text-color) 4%, transparent); }
+    .cg-title { display: inline-flex; align-items: center; gap: 8px; }
+    .cg-title small { font-weight: 400; opacity: .6; }
+    .config-group[open] > summary .chev { transform: rotate(90deg); }
+    .group-body { padding: 0 16px 16px; }
+    .sched-actions { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 8px; }
     .sec-head { display: flex; align-items: center; justify-content: space-between; }
     h2 { font-size: 1.05rem; margin: 0 0 10px; display: flex; align-items: center; gap: 6px; }
     h4 { margin: 0 0 6px; font-size: .9rem; display: flex; align-items: center; gap: 6px; }
