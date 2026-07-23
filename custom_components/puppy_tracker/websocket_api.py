@@ -16,7 +16,6 @@ from . import content
 from .const import DOMAIN
 from .coordinator import PuppyCoordinator
 from .db import PuppyTrackerDB, queries
-from .phases import PHASES
 from .seeder import async_seed_defaults
 
 _LOGGER = logging.getLogger(__name__)
@@ -34,6 +33,7 @@ def async_register_commands(hass: HomeAssistant) -> None:
         ws_add_schedule_item,
         ws_update_schedule_item,
         ws_remove_schedule_item,
+        ws_update_phase,
         ws_add_task,
         ws_update_task,
         ws_remove_task,
@@ -84,7 +84,7 @@ async def _full_state(db: PuppyTrackerDB, coordinator: PuppyCoordinator) -> dict
         "phase": data.get("phase"),
         "in_fear_period": data.get("in_fear_period"),
         "next_pee": next_pee_out,
-        "phases": PHASES,
+        "phases": await queries.get_phases(db.conn),
         "schedules": await queries.get_all_schedules(db.conn),
         "schedule_types": content.SCHEDULE_TYPES,
         "night": {"start": content.NIGHT_START, "end": content.NIGHT_END},
@@ -280,6 +280,37 @@ async def ws_remove_schedule_item(hass, connection, msg):
     db, _ = _entry(hass)
     await queries.remove_schedule_item(db.conn, msg["item_id"])
     connection.send_result(msg["id"], {"schedules": await queries.get_all_schedules(db.conn)})
+
+
+# --- Editable phase content ---------------------------------------------
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "puppy_tracker/update_phase",
+        vol.Required("key"): str,
+        vol.Optional("title"): str,
+        vol.Optional("week_start"): int,
+        vol.Optional("week_end"): int,
+        vol.Optional("pee_interval_hours"): int,
+        vol.Optional("focus"): [str],
+        vol.Optional("info_cards"): list,
+    }
+)
+@websocket_api.async_response
+async def ws_update_phase(hass, connection, msg):
+    e = _entry(hass)
+    if not e:
+        connection.send_result(msg["id"], {})
+        return
+    db, coordinator = e
+    fields = {
+        k: msg[k]
+        for k in ("title", "week_start", "week_end", "pee_interval_hours", "focus", "info_cards")
+        if k in msg
+    }
+    await queries.update_phase(db.conn, msg["key"], **fields)
+    await coordinator.async_request_refresh()
+    connection.send_result(msg["id"], await _full_state(db, coordinator))
 
 
 # --- Tasks ---------------------------------------------------------------

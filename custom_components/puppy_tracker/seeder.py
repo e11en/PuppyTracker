@@ -42,9 +42,29 @@ async def async_seed_defaults(conn: aiosqlite.Connection) -> None:
     home = puppy.get("homecoming_date") if puppy else None
     home_date = resolve_anchor_date(ANCHOR_HOMECOMING, birth, home)
 
+    await _seed_phases(conn)
     await _seed_socialization(conn, home_date)
     await _seed_bench(conn, home_date)
     await _seed_schedules(conn)
+
+
+async def _seed_phases(conn: aiosqlite.Connection) -> None:
+    """Seed editable phase content from the code defaults if empty."""
+    if await queries.phases_count(conn) > 0:
+        return
+    for i, phase in enumerate(PHASES):
+        await queries.add_phase(
+            conn,
+            key=phase["key"],
+            seq=i,
+            title=phase["title"],
+            week_start=phase["week_start"],
+            week_end=phase["week_end"],
+            pee_interval_hours=phase["pee_interval_hours"],
+            focus=phase["focus"],
+            info_cards=phase["info_cards"],
+        )
+    _LOGGER.info("Seeded %d phases", len(PHASES))
 
 
 async def _seed_schedules(conn: aiosqlite.Connection) -> None:

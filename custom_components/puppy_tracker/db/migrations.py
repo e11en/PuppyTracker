@@ -101,4 +101,20 @@ MIGRATIONS: list[tuple[int, str]] = [
         CREATE INDEX IF NOT EXISTS idx_sched_phase ON schedule_items(phase_key, time);
         """,
     ),
+    (
+        4,
+        """
+        -- Editable phase content (seeded from code defaults).
+        CREATE TABLE IF NOT EXISTS phases (
+            key TEXT PRIMARY KEY,
+            seq INTEGER NOT NULL DEFAULT 0,
+            title TEXT NOT NULL,
+            week_start INTEGER NOT NULL,
+            week_end INTEGER NOT NULL,
+            pee_interval_hours INTEGER NOT NULL DEFAULT 3,
+            focus TEXT DEFAULT '[]',       -- JSON array of strings
+            info_cards TEXT DEFAULT '[]'   -- JSON array of {title, icon, items[]}
+        );
+        """,
+    ),
 ]

@@ -38,7 +38,8 @@ class PuppyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         weeks = age_in_weeks(birth, today)
         days = age_in_days(birth, today)
-        phase = phase_for_age_weeks(weeks)
+        db_phases = await queries.get_phases(self._db.conn)
+        phase = phase_for_age_weeks(weeks, db_phases)
 
         # 5-minute rule: age in months * 5 min, at the lower bound of the range.
         age_months = round(days / 30.44, 1) if days is not None else None

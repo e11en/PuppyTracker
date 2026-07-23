@@ -6,6 +6,7 @@ websocket layer can serialize them directly.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import aiosqlite
@@ -374,4 +375,60 @@ async def update_schedule_item(conn: aiosqlite.Connection, item_id: int, **field
 
 async def remove_schedule_item(conn: aiosqlite.Connection, item_id: int) -> None:
     await conn.execute("DELETE FROM schedule_items WHERE id=?", (item_id,))
+    await conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# Editable phase content
+# ---------------------------------------------------------------------------
+
+async def get_phases(conn: aiosqlite.Connection) -> list[dict[str, Any]]:
+    cur = await conn.execute("SELECT * FROM phases ORDER BY seq, week_start")
+    out: list[dict[str, Any]] = []
+    for row in await cur.fetchall():
+        d = dict(row)
+        d["focus"] = json.loads(d.get("focus") or "[]")
+        d["info_cards"] = json.loads(d.get("info_cards") or "[]")
+        out.append(d)
+    return out
+
+
+async def phases_count(conn: aiosqlite.Connection) -> int:
+    cur = await conn.execute("SELECT COUNT(*) FROM phases")
+    row = await cur.fetchone()
+    return row[0] if row else 0
+
+
+async def add_phase(
+    conn: aiosqlite.Connection,
+    key: str,
+    seq: int,
+    title: str,
+    week_start: int,
+    week_end: int,
+    pee_interval_hours: int,
+    focus: list[str],
+    info_cards: list[dict[str, Any]],
+) -> None:
+    await conn.execute(
+        """INSERT OR REPLACE INTO phases
+           (key, seq, title, week_start, week_end, pee_interval_hours, focus, info_cards)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (key, seq, title, week_start, week_end, pee_interval_hours,
+         json.dumps(focus), json.dumps(info_cards)),
+    )
+    await conn.commit()
+
+
+async def update_phase(conn: aiosqlite.Connection, key: str, **fields: Any) -> None:
+    allowed = {"title", "week_start", "week_end", "pee_interval_hours", "focus", "info_cards"}
+    sets: dict[str, Any] = {}
+    for k, v in fields.items():
+        if k not in allowed:
+            continue
+        sets[k] = json.dumps(v) if k in ("focus", "info_cards") else v
+    if not sets:
+        return
+    cols = ", ".join(f"{k}=?" for k in sets)
+    await conn.execute(f"UPDATE phases SET {cols} WHERE key=?", (*sets.values(), key))
     await conn.commit()

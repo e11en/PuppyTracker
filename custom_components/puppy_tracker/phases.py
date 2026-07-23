@@ -144,14 +144,24 @@ PHASES: list[dict[str, Any]] = [
 FEAR_PERIOD_WEEKS = (8, 11)
 
 
-def phase_for_age_weeks(weeks: int | None) -> dict[str, Any] | None:
-    """Return the active phase dict for an age in weeks, or None if unknown."""
+def phase_for_age_weeks(
+    weeks: int | None, phases: list[dict[str, Any]] | None = None
+) -> dict[str, Any] | None:
+    """Return the active phase for an age in weeks, or None if unknown.
+
+    `phases` defaults to the code constants; pass the DB-backed list to use
+    the user's edited phase content.
+    """
     if weeks is None:
         return None
-    for phase in PHASES:
+    plist = phases if phases is not None else PHASES
+    if not plist:
+        return None
+    ordered = sorted(plist, key=lambda p: p["week_start"])
+    for phase in ordered:
         if phase["week_start"] <= weeks < phase["week_end"]:
             return phase
     # Older than the last modelled phase: return the last phase.
-    if weeks >= PHASES[-1]["week_end"]:
-        return PHASES[-1]
+    if weeks >= ordered[-1]["week_end"]:
+        return ordered[-1]
     return None

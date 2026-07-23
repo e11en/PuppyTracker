@@ -1,5 +1,15 @@
 import { LitElement, html, css, PropertyValues, nothing, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { live } from "lit/directives/live.js";
+
+interface PhaseDraft {
+  title: string;
+  week_start: number;
+  week_end: number;
+  pee_interval_hours: number;
+  focusText: string;
+  cards: { title: string; icon: string; itemsText: string }[];
+}
 
 // ---- Types ---------------------------------------------------------------
 
@@ -131,6 +141,8 @@ export class PuppyTrackerPanel extends LitElement {
   @state() private _schedForm?: string; // phase key we're adding an item to
   @state() private _editSched?: number; // schedule item id being edited
   @state() private _socAddWeek?: number; // socialization week index we're adding to
+  @state() private _editPhase?: string; // phase key being edited
+  @state() private _phaseDraft?: PhaseDraft;
   @state() private _confirm?: { kind: "task" | "protocol" | "step"; id: number };
 
   private _timer?: number;
@@ -801,23 +813,143 @@ export class PuppyTrackerPanel extends LitElement {
                 ${active ? html`<span class="badge">Nu</span>` : nothing}
               </summary>
               <div class="phase-body">
-                <ul class="focus">${p.focus.map((f) => html`<li>${f}</li>`)}</ul>
-                <div class="cards">
-                  ${p.info_cards.map(
-                    (c) => html`
-                      <div class="info-card">
-                        <h4><ha-icon icon=${c.icon}></ha-icon> ${c.title}</h4>
-                        <ul>${c.items.map((i) => html`<li>${i}</li>`)}</ul>
+                ${this._editPhase === p.key
+                  ? this._renderPhaseEditForm(p)
+                  : html`
+                      <div class="phase-toolbar">
+                        <button class="icon-link" title="Fase bewerken" @click=${() => this._startPhaseEdit(p)}>
+                          <ha-icon icon="mdi:pencil"></ha-icon><span class="lbl">Fase bewerken</span>
+                        </button>
                       </div>
-                    `,
-                  )}
-                </div>
+                      <ul class="focus">${p.focus.map((f) => html`<li>${f}</li>`)}</ul>
+                      <div class="cards">
+                        ${p.info_cards.map(
+                          (c) => html`
+                            <div class="info-card">
+                              <h4><ha-icon icon=${c.icon}></ha-icon> ${c.title}</h4>
+                              <ul>${c.items.map((i) => html`<li>${i}</li>`)}</ul>
+                            </div>
+                          `,
+                        )}
+                      </div>
+                    `}
                 ${this._renderPhaseSchedule(s, p)}
               </div>
             </details>
           `;
         })}
       </section>
+    `;
+  }
+
+  private _startPhaseEdit(p: Phase): void {
+    this._editPhase = p.key;
+    this._phaseDraft = {
+      title: p.title,
+      week_start: p.week_start,
+      week_end: p.week_end,
+      pee_interval_hours: p.pee_interval_hours,
+      focusText: (p.focus ?? []).join("\n"),
+      cards: (p.info_cards ?? []).map((c) => ({
+        title: c.title,
+        icon: c.icon,
+        itemsText: (c.items ?? []).join("\n"),
+      })),
+    };
+  }
+
+  private _pd(patch: Partial<PhaseDraft>): void {
+    this._phaseDraft = { ...this._phaseDraft!, ...patch };
+  }
+
+  private _pdCard(i: number, patch: Partial<{ title: string; icon: string; itemsText: string }>): void {
+    const cards = [...this._phaseDraft!.cards];
+    cards[i] = { ...cards[i], ...patch };
+    this._phaseDraft = { ...this._phaseDraft!, cards };
+  }
+
+  private _pdAddCard(): void {
+    this._phaseDraft = {
+      ...this._phaseDraft!,
+      cards: [...this._phaseDraft!.cards, { title: "", icon: "mdi:information-outline", itemsText: "" }],
+    };
+  }
+
+  private _pdRemoveCard(i: number): void {
+    this._phaseDraft = {
+      ...this._phaseDraft!,
+      cards: this._phaseDraft!.cards.filter((_, j) => j !== i),
+    };
+  }
+
+  private async _submitPhaseEdit(key: string): Promise<void> {
+    const d = this._phaseDraft;
+    if (!d) return;
+    const focus = d.focusText.split("\n").map((t) => t.trim()).filter(Boolean);
+    const info_cards = d.cards
+      .map((c) => ({
+        title: c.title.trim(),
+        icon: c.icon.trim() || "mdi:information-outline",
+        items: c.itemsText.split("\n").map((t) => t.trim()).filter(Boolean),
+      }))
+      .filter((c) => c.title || c.items.length);
+    this._editPhase = undefined;
+    this._phaseDraft = undefined;
+    const st = await this._ws<State>("update_phase", {
+      key,
+      title: d.title,
+      week_start: d.week_start,
+      week_end: d.week_end,
+      pee_interval_hours: d.pee_interval_hours,
+      focus,
+      info_cards,
+    });
+    if (st && st.puppy !== undefined) this._state = st;
+  }
+
+  private _renderPhaseEditForm(p: Phase) {
+    const d = this._phaseDraft;
+    if (!d) return nothing;
+    const val = (e: Event) => (e.target as HTMLInputElement).value;
+    return html`
+      <div class="phase-edit">
+        <label class="fld grow">Titel
+          <input type="text" .value=${live(d.title)} @input=${(e: Event) => this._pd({ title: val(e) })} />
+        </label>
+        <div class="row3">
+          <label class="fld">Vanaf (wk)
+            <input type="number" .value=${live(String(d.week_start))} @input=${(e: Event) => this._pd({ week_start: parseInt(val(e), 10) || 0 })} />
+          </label>
+          <label class="fld">Tot (wk)
+            <input type="number" .value=${live(String(d.week_end))} @input=${(e: Event) => this._pd({ week_end: parseInt(val(e), 10) || 0 })} />
+          </label>
+          <label class="fld">Plas-interval (u)
+            <input type="number" .value=${live(String(d.pee_interval_hours))} @input=${(e: Event) => this._pd({ pee_interval_hours: parseInt(val(e), 10) || 1 })} />
+          </label>
+        </div>
+        <label class="fld grow">Focuspunten (één per regel)
+          <textarea rows="4" .value=${live(d.focusText)} @input=${(e: Event) => this._pd({ focusText: (e.target as HTMLTextAreaElement).value })}></textarea>
+        </label>
+        <div class="cards-edit">
+          <div class="ce-head"><strong>Info-kaarten</strong><button class="link" @click=${this._pdAddCard}>+ kaart</button></div>
+          ${d.cards.map(
+            (c, i) => html`
+              <div class="ce-card">
+                <div class="ce-row">
+                  <input type="text" placeholder="Titel" .value=${live(c.title)} @input=${(e: Event) => this._pdCard(i, { title: val(e) })} />
+                  <input type="text" placeholder="Icoon (mdi:...)" .value=${live(c.icon)} @input=${(e: Event) => this._pdCard(i, { icon: val(e) })} />
+                  <button class="icon-link danger" title="Kaart verwijderen" @click=${() => this._pdRemoveCard(i)}><ha-icon icon="mdi:delete-outline"></ha-icon></button>
+                </div>
+                <textarea rows="3" placeholder="Punten (één per regel)" .value=${live(c.itemsText)} @input=${(e: Event) => this._pdCard(i, { itemsText: (e.target as HTMLTextAreaElement).value })}></textarea>
+              </div>
+            `,
+          )}
+        </div>
+        <div class="phase-edit-actions">
+          <button class="primary" @click=${() => this._submitPhaseEdit(p.key)}>Opslaan</button>
+          <button class="link" @click=${() => { this._editPhase = undefined; this._phaseDraft = undefined; }}>Annuleer</button>
+        </div>
+      </div>
     `;
   }
 
@@ -1262,6 +1394,23 @@ export class PuppyTrackerPanel extends LitElement {
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
     .info-card { background: color-mix(in srgb, var(--primary-text-color) 5%, transparent); border-radius: 10px; padding: 10px 12px; }
     .info-card ul { margin: 0; padding-left: 16px; font-size: .82rem; }
+    .phase-toolbar { display: flex; justify-content: flex-end; margin-bottom: 4px; }
+    .phase-toolbar .icon-link { gap: 4px; padding: 4px 8px; }
+    .phase-toolbar .lbl { font-size: .8rem; }
+    .phase-edit { display: flex; flex-direction: column; gap: 10px; }
+    .phase-edit .fld { display: flex; flex-direction: column; gap: 3px; font-size: .74rem; opacity: .9; }
+    .phase-edit input, .phase-edit textarea { padding: 8px; border-radius: 8px; border: 1px solid var(--divider-color, #ccc); background: var(--card-background-color); color: inherit; font: inherit; box-sizing: border-box; width: 100%; }
+    .phase-edit textarea { resize: vertical; }
+    .phase-edit .row3 { display: flex; gap: 10px; flex-wrap: wrap; }
+    .phase-edit .row3 .fld { flex: 1 1 90px; }
+    .cards-edit { display: flex; flex-direction: column; gap: 8px; }
+    .ce-head { display: flex; align-items: center; justify-content: space-between; }
+    .ce-card { border: 1px solid var(--divider-color, #ddd); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+    .ce-row { display: flex; gap: 6px; align-items: center; }
+    .ce-row input:first-child { flex: 2; }
+    .ce-row input:nth-child(2) { flex: 1; }
+    .phase-edit-actions { display: flex; gap: 8px; }
+
     .phase-sched { margin-top: 14px; border-top: 1px solid var(--divider-color, #eee); padding-top: 10px; }
     .phase-sched > summary { font-size: .92rem; }
     .ps-summary { display: inline-flex; align-items: center; gap: 6px; }

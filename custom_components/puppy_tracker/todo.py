@@ -70,7 +70,8 @@ class DailyChecklistTodo(TodoListEntity):
     async def _active_phase_key(self) -> str | None:
         puppy = await queries.get_puppy(self._db.conn)
         weeks = age_in_weeks(puppy.get("birth_date") if puppy else None, dt_util.now().date())
-        phase = phase_for_age_weeks(weeks)
+        db_phases = await queries.get_phases(self._db.conn)
+        phase = phase_for_age_weeks(weeks, db_phases)
         return phase["key"] if phase else None
 
     async def async_update(self) -> None:
