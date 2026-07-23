@@ -82,4 +82,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: PuppyConfigEntry) -> bo
     if unload_ok:
         data = hass.data[DOMAIN].pop(entry.entry_id)
         await data["db"].async_close()
+
+        # Remove the sidebar panel once the last config entry is gone.
+        if not hass.data[DOMAIN]:
+            from .panel import async_unregister_panel_frontend
+
+            async_unregister_panel_frontend(hass)
     return unload_ok

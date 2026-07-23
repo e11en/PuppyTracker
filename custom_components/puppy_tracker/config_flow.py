@@ -16,7 +16,6 @@ from .const import (
     CONF_BIRTH_DATE,
     CONF_HOMECOMING_DATE,
     CONF_NAME,
-    DEFAULT_NAME,
     DOMAIN,
 )
 
@@ -31,13 +30,13 @@ class PuppyTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         if user_input is not None:
             return self.async_create_entry(
-                title=user_input.get(CONF_NAME, DEFAULT_NAME),
+                title=user_input[CONF_NAME],
                 data=user_input,
             )
 
         schema = vol.Schema(
             {
-                vol.Required(CONF_NAME, default=DEFAULT_NAME): TextSelector(),
+                vol.Required(CONF_NAME): TextSelector(),
                 vol.Optional(CONF_BIRTH_DATE): DateSelector(),
                 vol.Optional(CONF_HOMECOMING_DATE): DateSelector(),
             }

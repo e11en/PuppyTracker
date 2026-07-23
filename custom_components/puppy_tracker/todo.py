@@ -29,7 +29,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     db: PuppyTrackerDB = hass.data[DOMAIN][entry.entry_id]["db"]
-    name = entry.data.get("name", "Beer")
+    name = entry.data.get("name", "Puppy")
     async_add_entities([DailyChecklistTodo(db, entry, name)])
 
 

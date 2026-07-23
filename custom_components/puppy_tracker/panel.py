@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from homeassistant.components import frontend
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.panel_custom import async_register_panel
 from homeassistant.core import HomeAssistant
@@ -64,3 +65,8 @@ async def async_register_panel_frontend(hass: HomeAssistant) -> None:
         _LOGGER.debug("Puppy Tracker panel registered")
     except ValueError:
         _LOGGER.debug("Panel already registered, skipping")
+
+
+def async_unregister_panel_frontend(hass: HomeAssistant) -> None:
+    """Remove the sidebar panel (on unload of the last config entry)."""
+    frontend.async_remove_panel(hass, PANEL_URL_PATH, warn_if_unknown=False)

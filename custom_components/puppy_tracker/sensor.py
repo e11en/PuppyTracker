@@ -21,7 +21,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator: PuppyCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-    name = entry.data.get("name", "Beer")
+    name = entry.data.get("name", "Puppy")
     async_add_entities(
         [
             PuppyAgeSensor(coordinator, entry, name),

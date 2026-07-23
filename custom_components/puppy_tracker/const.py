@@ -14,7 +14,7 @@ CONF_NAME = "name"
 CONF_BIRTH_DATE = "birth_date"
 CONF_HOMECOMING_DATE = "homecoming_date"
 
-DEFAULT_NAME = "Beer"
+DEFAULT_NAME = "Puppy"
 DEFAULT_LANGUAGE = "nl"
 SUPPORTED_LANGUAGES = ["nl", "en"]
 
