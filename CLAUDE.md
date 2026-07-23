@@ -100,14 +100,17 @@ ha core check && ha core restart
 
 ## Branding / integration icon
 
-Home Assistant shows an integration's logo in the integrations list from the
-central **[home-assistant/brands](https://github.com/home-assistant/brands)**
-repo (`brands.home-assistant.io/<domain>/icon.png`). There is **no local
-fallback**, so a custom integration shows "icon not available" until its icon is
-added to brands. The ready-made assets live in [`brand/`](brand/) (icon.png 256²,
-icon@2x.png 512², logo variants). To publish: open a PR to home-assistant/brands
-adding them under `custom_integrations/puppy_tracker/`. (The sidebar panel icon
-is separate and already set to `mdi:dog`.)
+Since Home Assistant **2026.3**, a custom integration ships its own brand images
+in a `brand/` folder inside the integration — no PR to home-assistant/brands is
+needed (that repo now rejects custom-integration icons). HA serves them via
+`/api/brands/integration/<domain>/<image>` and local images take priority over
+the CDN, with no extra config.
+
+Assets live in [`custom_components/puppy_tracker/brand/`](custom_components/puppy_tracker/brand/):
+`icon.png` (256²), `icon@2x.png` (512²), `logo.png` / `logo@2x.png` (landscape),
+all transparent + trimmed. Optional `dark_*` variants are supported. On HA older
+than 2026.3 the integrations-list logo simply falls back to "icon not available".
+(The sidebar panel icon is separate and set to `mdi:dog`.)
 
 ## Conventions
 
