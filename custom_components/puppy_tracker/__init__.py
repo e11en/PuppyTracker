@@ -76,6 +76,28 @@ async def _async_reload_on_update(hass: HomeAssistant, entry: PuppyConfigEntry) 
     await hass.config_entries.async_reload(entry.entry_id)
 
 
+async def async_remove_entry(hass: HomeAssistant, entry: PuppyConfigEntry) -> None:
+    """Delete the SQLite database when the integration is removed.
+
+    Without this, deleting the integration leaves puppy_tracker.db behind, so a
+    reinstall would resurrect the old data (content, photo, language).
+    """
+    from pathlib import Path
+
+    from .const import DB_FILENAME
+
+    def _remove() -> None:
+        for suffix in ("", "-wal", "-shm"):
+            p = Path(hass.config.path(DB_FILENAME + suffix))
+            try:
+                p.unlink(missing_ok=True)
+            except OSError as err:
+                _LOGGER.warning("Could not remove %s: %s", p, err)
+
+    await hass.async_add_executor_job(_remove)
+    _LOGGER.info("Puppy Tracker data removed")
+
+
 async def async_unload_entry(hass: HomeAssistant, entry: PuppyConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
